@@ -596,7 +596,7 @@ dev = [
     { name = "pandas", specifier = ">=3.1.0" },
     { name = "pandas-stubs", specifier = ">=3.0.5.260914" },
     { name = "polars", specifier = ">=2.0.0" },
-    { name = "pre-commit", specifier = ">=4.7.0" },
+    { name = "prek", specifier = ">=0.5.5" },
     { name = "pyright" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.23" },

@@ -5,13 +5,14 @@
 ```bash
 git clone git@github.com:bjfoster/nanosdk.git && cd nanosdk
 uv sync                              # Python 3.13 venv with the dev tools
-uv run pre-commit install            # hooks: ruff, file hygiene, lockfile, commit messages
+uv run prek install                  # git hooks (prek, a fast pre-commit drop-in): ruff,
+                                     # file hygiene, lockfiles, commit messages
 ```
 
 ## Checks
 
-The pre-commit hooks run ruff and friends on every commit, and the type checkers before
-each push. CI runs everything below on Linux, macOS and Windows.
+The hooks (`.pre-commit-config.yaml`, run by prek) run ruff and friends on every commit,
+and the type checkers before each push. `uv run prek run --all-files` runs them by hand. CI runs everything below on Linux, macOS and Windows.
 
 ```bash
 uv run ruff check . && uv run ruff format --check .
