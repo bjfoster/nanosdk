@@ -80,7 +80,7 @@ The settings that matter most:
 | `snake-case-field` + `alias-generator = "to_camel"` + `allow-population-by-field-name` | `pet.photo_urls` in Python, `photoUrls` on the wire. Using the alias generator instead of per-field `Field(alias=...)` matters: type checkers then see `Pet(photo_urls=...)` as the constructor signature, and nanoapi copies that signature onto the route |
 | `naming-strategy = "parent-prefixed"` | the spec has two inline `status` enums; you get `PetStatus` / `OrderStatus`, not `Status` / `Status1` |
 | `use-annotated`, `field-constraints` | `Annotated[int, Field(...)]` instead of `conint()` |
-| `formatters = ["ruff-format", "ruff-check"]` | output is already formatted; the root ruff config excludes `models.py` so nothing else restyles it |
+| `formatters = ["ruff-format"]` | output is already formatted; the root ruff config excludes `models.py` so nothing else restyles it. Not `ruff-check`: it would apply your lint rules (docstring style, say) and the generated code would change whenever they do |
 | `custom-file-header`, `disable-timestamp` | a "don't edit" note and stable output, so regenerating gives no diff unless the spec changed |
 
 `test_generated_models_are_up_to_date` regenerates the models and compares them with

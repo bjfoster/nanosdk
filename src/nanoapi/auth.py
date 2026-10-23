@@ -1,6 +1,14 @@
-"""Ready-made ``httpx.Auth`` implementations. Pass one as ``auth=`` to any client.
+"""Ready-made `httpx.Auth` implementations. Pass one as `auth=` to any client.
 
-They work with both ``Client`` and ``AsyncClient``: httpx drives the same flow either way.
+```python
+from nanoapi.auth import Bearer
+
+api = Api("https://api.example.com", auth=Bearer(token))
+```
+
+They work with both [`Client`][nanoapi.Client] and [`AsyncClient`][nanoapi.AsyncClient]:
+httpx drives the same flow either way. Any other `httpx.Auth` (or a `(user, password)`
+tuple for basic auth) works as `auth=` too.
 """
 
 import base64
@@ -11,25 +19,49 @@ from typing import Any, Literal, cast
 
 import httpx
 
-from ._errors import APIStatusError
+from .errors import APIStatusError
 
 __all__ = ["ApiKey", "Bearer", "OAuth2ClientCredentials"]
 
 
 class Bearer(httpx.Auth):
-    """``Authorization: Bearer <token>``. ``token`` may be a function, called per request."""
+    """Send `Authorization: Bearer <token>` with every request.
+
+    Example:
+        ```python
+        Bearer("s3cr3t")
+        Bearer(lambda: vault.read("api-token"))  # read fresh for every request
+        ```
+
+    Args:
+        token: The token, or a function returning it that's called for each request
+            (for rotating credentials).
+    """
 
     def __init__(self, token: str | Callable[[], str]) -> None:
         self._token = token
 
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        """Add the header (called by httpx for each request)."""
         token = self._token if isinstance(self._token, str) else self._token()
         request.headers["Authorization"] = f"Bearer {token}"
         yield request
 
 
 class ApiKey(httpx.Auth):
-    """A static key sent as a header (default) or a query parameter."""
+    """Send a static API key as a header or a query parameter.
+
+    Example:
+        ```python
+        ApiKey("X-Api-Key", key)                    # X-Api-Key: <key>
+        ApiKey("api_key", key, location="query")    # ?api_key=<key>
+        ```
+
+    Args:
+        name: The header or query-parameter name.
+        value: The key.
+        location: Send it as a `"header"` or a `"query"` parameter.
+    """
 
     def __init__(
         self, name: str, value: str, *, location: Literal["header", "query"] = "header"
@@ -39,6 +71,7 @@ class ApiKey(httpx.Auth):
         self.location = location
 
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        """Add the key (called by httpx for each request)."""
         if self.location == "header":
             request.headers[self.name] = self._value
         else:
@@ -47,11 +80,38 @@ class ApiKey(httpx.Auth):
 
 
 class OAuth2ClientCredentials(httpx.Auth):
-    """OAuth 2 client-credentials grant (RFC 6749 §4.4).
+    """OAuth 2 client-credentials grant (RFC 6749 §4.4), for machine-to-machine APIs.
 
-    Fetches a token on first use, caches it until shortly before ``expires_in``, and
-    fetches a fresh one (then retries once) if the API answers 401. ``token_url`` must
-    be absolute: token requests don't go through the client's ``base_url``.
+    Fetches a token on first use and caches it until `leeway` seconds before it
+    expires. If the API answers 401 anyway (a revoked token, say), it fetches a new
+    token and retries the request once. A failed token request raises
+    [`APIStatusError`][nanoapi.APIStatusError].
+
+    Example:
+        ```python
+        auth = OAuth2ClientCredentials(
+            "https://auth.example.com/oauth/token", client_id, client_secret, scope="read"
+        )
+        api = Api("https://api.example.com", auth=auth)
+        ```
+
+    One instance can be shared by several clients; concurrent requests that find the
+    token expired may each fetch a new one.
+
+    Args:
+        token_url: Absolute URL of the token endpoint. Token requests don't go through
+            the client's `base_url`.
+        client_id: The client ID.
+        client_secret: The client secret.
+        scope: Space-separated scopes to request.
+        extra: Extra form fields for the token request (for example `audience`).
+        credentials_in: Send the credentials as HTTP basic auth (`"header"`, the
+            RFC's recommendation) or as form fields (`"body"`).
+        leeway: Refresh this many seconds before the token's `expires_in` runs out.
+        clock: Monotonic clock in seconds; replace it in tests.
+
+    Raises:
+        ValueError: If `token_url` isn't absolute.
     """
 
     requires_response_body = True
@@ -82,6 +142,12 @@ class OAuth2ClientCredentials(httpx.Auth):
         self._expires_at = 0.0
 
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        """Fetch or reuse a token, send the request, and refresh once on a 401.
+
+        Raises:
+            APIStatusError: If the token endpoint rejects the credentials or answers
+                without an `access_token`.
+        """
         if self._token is None or self._clock() >= self._expires_at:
             self._store((yield self._token_request()))
         request.headers["Authorization"] = f"Bearer {self._token}"

@@ -1,0 +1,88 @@
+site_name: nanoapi
+site_description: A tiny, fully typed HTTP client core on httpx + pydantic.
+repo_name: nanoapi
+copyright: MIT License
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+nav:
+  - Home: index.md
+  - Guide: guide.md
+  - API reference:
+      - reference/index.md
+      - Clients: reference/client.md
+      - Routes: reference/routes.md
+      - Request fields: reference/params.md
+      - Pagination: reference/pagination.md
+      - Retries: reference/retry.md
+      - Auth: reference/auth.md
+      - DataFrames: reference/frames.md
+      - Errors: reference/errors.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+            - https://docs.pola.rs/api/python/stable/objects.inv
+            - https://pandas.pydata.org/docs/objects.inv
+          options:
+            docstring_style: google
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            inherited_members: true
+            members_order: source
+            filters: ["!^_[^_]"]  # hide _private, keep documented dunders like __call__
+            show_if_no_docstring: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            show_source: false
+            summary: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      check_paths: true
+
+watch:
+  - src
+  - README.md

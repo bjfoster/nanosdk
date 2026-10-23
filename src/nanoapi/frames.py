@@ -1,10 +1,18 @@
 """Turn decoded responses into DataFrames.
 
-Needs the matching extra: ``nanoapi[polars]`` or ``nanoapi[pandas]``. Use as a route
-``.map()`` or on anything iterable of models / dicts (including ``route.iter(...)``)::
+Use the converters as a route [`map`][nanoapi.Route.map], so the route returns a
+DataFrame, or call them on anything iterable of models or dicts, including a
+paginated route's `.iter()`:
 
+```python
+class Api(nanoapi.Client):
     posts = nanoapi.get("/posts", response=list[Post]).map(nanoapi.frames.polars)
-    df = nanoapi.frames.pandas(api.list_posts.iter())
+
+df = api.posts()                                    # pl.DataFrame
+df = nanoapi.frames.pandas(api.list_posts.iter())   # every page, one pd.DataFrame
+```
+
+polars and pandas are optional: install `nanoapi[polars]` or `nanoapi[pandas]`.
 """
 
 from __future__ import annotations
@@ -21,10 +29,27 @@ if TYPE_CHECKING:
 __all__ = ["pandas", "polars", "records"]
 
 type Rows = BaseModel | Mapping[str, Any] | Iterable[BaseModel | Mapping[str, Any]]
+"""What the converters accept: a model, a mapping, or an iterable of either.
+
+A `RootModel` (say `RootModel[list[Post]]`) is unwrapped to its root value.
+"""
 
 
 def records(data: Rows) -> list[dict[str, Any]]:
-    """Plain-dict rows: models are dumped with Python field names, nested models as dicts."""
+    """Convert models and mappings to plain-dict rows.
+
+    Models are dumped with their Python field names (not wire aliases), and nested
+    models become nested dicts. Useful for CSV, SQLite or any other row consumer.
+
+    Args:
+        data: A model, a mapping, or an iterable of them.
+
+    Returns:
+        One dict per row; a single model or mapping gives one row.
+
+    Raises:
+        TypeError: If an item is neither a pydantic model nor a mapping.
+    """
     if isinstance(data, BaseModel):
         dumped: Any = data.model_dump()
         return records(dumped) if isinstance(data, RootModel) else [dumped]
@@ -34,6 +59,16 @@ def records(data: Rows) -> list[dict[str, Any]]:
 
 
 def polars(data: Rows) -> pl.DataFrame:
+    """Build a polars DataFrame, one row per model or mapping.
+
+    Nested models become struct columns. Needs the `nanoapi[polars]` extra.
+
+    Args:
+        data: A model, a mapping, or an iterable of them.
+
+    Returns:
+        The DataFrame; empty (no columns) when there are no rows.
+    """
     import polars as pl
 
     rows = records(data)
@@ -41,6 +76,16 @@ def polars(data: Rows) -> pl.DataFrame:
 
 
 def pandas(data: Rows) -> pd.DataFrame:
+    """Build a pandas DataFrame, one row per model or mapping.
+
+    Nested models become dict-valued columns. Needs the `nanoapi[pandas]` extra.
+
+    Args:
+        data: A model, a mapping, or an iterable of them.
+
+    Returns:
+        The DataFrame.
+    """
     import pandas as pd
 
     return pd.DataFrame.from_records(records(data))

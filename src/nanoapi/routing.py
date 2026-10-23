@@ -1,3 +1,17 @@
+"""Declaring routes: `get`/`post`/..., `Route`, `PaginatedRoute` and `Routes` groups.
+
+A route ties an HTTP method and path to a request model and a response type:
+
+```python
+class Api(nanoapi.Client):
+    get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+```
+
+On a client *instance*, `api.get_user` is a bound route you call like the request model's
+constructor; the result is the decoded response. See [Where fields go][nanoapi.params]
+for how request fields are placed.
+"""
+
 from __future__ import annotations
 
 import re
@@ -10,12 +24,12 @@ from urllib.parse import quote
 import httpx
 from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 
-from ._errors import ResponseValidationError
-from ._paginate import NextPage, Page
-from ._params import Location, Param
+from .errors import ResponseValidationError
+from .pagination import NextPage, Page
+from .params import Location, Param
 
 if TYPE_CHECKING:
-    from ._client import (
+    from .client import (
         AsyncBoundPaginatedRoute,
         AsyncBoundRoute,
         AsyncClient,
@@ -28,6 +42,7 @@ __all__ = [
     "PaginatedRoute",
     "Route",
     "Routes",
+    "Verb",
     "delete",
     "get",
     "head",
@@ -44,7 +59,22 @@ _PLACEHOLDER = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
 
 @dataclass(slots=True)
 class EncodedRequest:
-    """Everything needed to build an ``httpx.Request`` for one call."""
+    """Everything needed to build an `httpx.Request` for one call.
+
+    Produced by [`Route.encode`][nanoapi.Route.encode]; the client turns it into an
+    `httpx.Request`.
+
+    Attributes:
+        method: The HTTP method.
+        url: The path with placeholders filled in (relative to the client's `base_url`).
+        params: Query parameters as `(name, value)` pairs, in order; repeats allowed.
+        headers: Route headers plus header fields from the request model.
+        json: The JSON body, when `has_json` is set.
+        content: A raw `str` or `bytes` body.
+        data: Form fields.
+        files: Multipart files.
+        has_json: Whether `json` holds a body (it may legitimately be `None`).
+    """
 
     method: str
     url: str
@@ -72,10 +102,41 @@ class _Plan:
 
 
 class Route[**P, ReqT, RespT]:
-    """One HTTP endpoint: method + path + request model + response type.
+    """One HTTP endpoint: method, path, request model and response type.
 
-    ``P`` is the request model's constructor signature, so calling the bound route
-    is typed exactly like constructing the model.
+    Usually made with [`get`][nanoapi.get], [`post`][nanoapi.post] and friends rather than
+    directly. As a class attribute of a [`Client`][nanoapi.Client] it's a descriptor: on
+    an instance it becomes a [`BoundRoute`][nanoapi.BoundRoute] you call with the request
+    model's arguments.
+
+    The type parameters carry the typing end to end: `P` is the request model's
+    constructor signature (so calls are checked like constructing the model), `ReqT` the
+    request model and `RespT` the decoded response type.
+
+    Args:
+        method: The HTTP method; any case.
+        path: The path, relative to the client's `base_url`, with `{name}` placeholders
+            filled from request-model fields.
+        request: The request model: a pydantic `BaseModel` (or `RootModel`) subclass.
+            `None` for routes that take no arguments.
+        response: The response type: anything pydantic's `TypeAdapter` accepts (a model,
+            `list[Model]`, `dict[str, int]`, ...), or `str`, `bytes`, `httpx.Response`,
+            or `None` to ignore the body.
+        headers: Static headers sent with every call of this route.
+        exclude_unset: Only send fields the caller actually set. Defaults to `True` for
+            PATCH and `False` otherwise.
+        name: The route's name; defaults to the attribute name it's assigned to.
+        meta: Free-form data for your client hooks, such as `{"auth": False}`.
+
+    Attributes:
+        method: The upper-cased HTTP method.
+        path: The path template.
+        request: The request model class, or `None`.
+        response: The declared response type.
+        headers: Static headers.
+        exclude_unset: Whether only explicitly set fields are sent.
+        name: The route's name (the attribute name on its class, once assigned).
+        meta: Free-form data for client hooks.
     """
 
     def __init__(
@@ -130,12 +191,38 @@ class Route[**P, ReqT, RespT]:
         return clone
 
     def with_prefix(self, prefix: str) -> Self:
+        """Return a copy with `prefix` prepended to the path.
+
+        [`Routes`][nanoapi.Routes] groups call this for their `prefix=`.
+
+        Args:
+            prefix: Path prefix such as `"/users"`; slashes are normalised.
+
+        Returns:
+            A new route; this one is unchanged.
+        """
         clone = self._clone()
         clone.path = prefix.rstrip("/") + "/" + self.path.lstrip("/") if self.path else prefix
         return clone
 
     def map[U](self, fn: Callable[[RespT], U]) -> Route[P, ReqT, U]:
-        """A copy whose decoded response is passed through ``fn``: ``.map(frames.polars)``."""
+        """Return a copy whose decoded response is passed through `fn`.
+
+        The return type follows `fn`, so type checkers see the mapped type. Maps chain,
+        and run after validation, so `fn` receives the declared response type.
+
+        Example:
+            ```python
+            count = nanoapi.get("/posts", response=list[Post]).map(len)       # -> int
+            frame = nanoapi.get("/posts", response=list[Post]).map(frames.polars)
+            ```
+
+        Args:
+            fn: Function of the decoded response.
+
+        Returns:
+            A new route; this one is unchanged.
+        """
         clone = cast(Route[Any, Any, Any], self._clone())
         clone._maps = (*self._maps, fn)
         return clone
@@ -151,9 +238,32 @@ class Route[**P, ReqT, RespT]:
     def paginate(self, next: Any, *, items: Any = None) -> PaginatedRoute[Any, Any, Any, Any]:
         """Make the route iterable across pages.
 
-        ``next`` picks the next request (``Cursor``, ``Offset``, ``PageNumber``,
-        ``LinkHeader`` or your own function of the ``Page``). ``items`` pulls the item
-        list out of a page; it can be omitted when the response is already a list.
+        Bound to a client, the result keeps the route's normal call (the first page)
+        and adds `.iter()` (every item, lazily) and `.pages()` (every
+        [`Page`][nanoapi.Page]).
+
+        Example:
+            ```python
+            # The response is a list: its elements are the items.
+            by_offset = nanoapi.get("/posts", request=ListPosts, response=list[Post]).paginate(
+                nanoapi.Offset("offset", limit="limit")
+            )
+            # The response wraps the list: say where the items are.
+            feed = nanoapi.get("/feed", request=Feed, response=FeedPage).paginate(
+                nanoapi.Cursor("next_cursor"), items=lambda page: page.data
+            )
+            ```
+
+        Args:
+            next: The pagination strategy: [`Cursor`][nanoapi.Cursor],
+                [`Offset`][nanoapi.Offset], [`PageNumber`][nanoapi.PageNumber],
+                [`LinkHeader`][nanoapi.LinkHeader], or any function of the current
+                `Page` returning the next request model, an `httpx.URL`, or `None` to stop.
+            items: Extracts the item list from a decoded page. Optional when the
+                response type is already a `list`.
+
+        Returns:
+            A paginated route wrapping this one.
         """
         return PaginatedRoute(self, items=items or _as_items, next=next)
 
@@ -163,7 +273,12 @@ class Route[**P, ReqT, RespT]:
         return f"<Route {self.name or '?'}: {self.method} {self.path} ({req}) -> {resp}>"
 
     def build_model(self, *args: P.args, **kwargs: P.kwargs) -> ReqT:
-        """Construct the request model from call arguments."""
+        """Construct the request model from call arguments.
+
+        Raises:
+            pydantic.ValidationError: If the arguments don't validate.
+            TypeError: If the route has no request model but arguments were given.
+        """
         if self.request is None:
             if args or kwargs:
                 raise TypeError(f"{self.name or self.path}() takes no arguments")
@@ -215,7 +330,18 @@ class Route[**P, ReqT, RespT]:
         return _Plan(tuple(plans), root_body=False)
 
     def encode(self, model: ReqT) -> EncodedRequest:
-        """Turn a request model instance into URL / params / headers / body."""
+        """Work out the URL, query, headers and body for a request model.
+
+        Args:
+            model: An instance of the route's request model (`None` if it has none).
+
+        Returns:
+            The encoded request, before client-level headers and auth are added.
+
+        Raises:
+            TypeError: If the model's fields can't fill the route's path placeholders,
+                or the `Body()` / `Json()` markers conflict.
+        """
         plan = self._plan
         out = EncodedRequest(self.method, self.path, headers=dict(self.headers))
         if model is None:
@@ -292,7 +418,17 @@ class Route[**P, ReqT, RespT]:
         return TypeAdapter(self.response)
 
     def parse(self, response: httpx.Response) -> RespT:
-        """Decode a successful ``httpx.Response`` into the declared type, then apply ``map``s."""
+        """Decode a successful response into the declared type, then apply any maps.
+
+        Args:
+            response: A 2xx response.
+
+        Returns:
+            The decoded (and mapped) value.
+
+        Raises:
+            ResponseValidationError: If the body doesn't match the response type.
+        """
         value: Any = self._decode(response)
         for fn in self._maps:
             value = fn(value)
@@ -330,8 +466,16 @@ def _scalar(value: Any) -> str:
     return str(value)
 
 
-class _Verb:
-    """``nanoapi.get(...)`` etc. Overloads give the right ``Route[P, Req, Resp]``."""
+class Verb:
+    """Declares routes for one HTTP method; `nanoapi.get`, `nanoapi.post` and so on.
+
+    Call it with a path and the request/response types to get a [`Route`][nanoapi.Route].
+    Overloads give the route precise types whether or not `request` and `response` are
+    given. Use [`route`][nanoapi.route] for methods without a ready-made verb.
+
+    Args:
+        method: The HTTP method this verb declares.
+    """
 
     def __init__(self, method: str) -> None:
         self.method = method
@@ -390,6 +534,27 @@ class _Verb:
         exclude_unset: bool | None = None,
         meta: Mapping[str, Any] | None = None,
     ) -> Route[Any, Any, Any]:
+        """Declare a route for this verb's method.
+
+        Example:
+            ```python
+            get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+            health = nanoapi.get("/health", response=str, headers={"X-Probe": "1"})
+            ```
+
+        Args:
+            path: The path, relative to the client's `base_url`, with `{name}`
+                placeholders filled from request-model fields.
+            request: The request model class; `None` for routes without arguments.
+            response: The response type (see [`Route`][nanoapi.Route]); `None` ignores
+                the body.
+            headers: Static headers sent with every call.
+            exclude_unset: Only send fields the caller set; defaults to `True` for PATCH.
+            meta: Free-form data for client hooks.
+
+        Returns:
+            The route, typed from `request` and `response`.
+        """
         return Route(
             self.method,
             path,
@@ -401,24 +566,57 @@ class _Verb:
         )
 
 
-get = _Verb("GET")
-post = _Verb("POST")
-put = _Verb("PUT")
-patch = _Verb("PATCH")
-delete = _Verb("DELETE")
-head = _Verb("HEAD")
-options = _Verb("OPTIONS")
+get = Verb("GET")
+"""Declare a GET route. Unmarked request fields go in the query string."""
+post = Verb("POST")
+"""Declare a POST route. Unmarked request fields become keys of a JSON body."""
+put = Verb("PUT")
+"""Declare a PUT route. Unmarked request fields become keys of a JSON body."""
+patch = Verb("PATCH")
+"""Declare a PATCH route. Only fields the caller sets are sent (`exclude_unset`)."""
+delete = Verb("DELETE")
+"""Declare a DELETE route. Unmarked request fields go in the query string."""
+head = Verb("HEAD")
+"""Declare a HEAD route."""
+options = Verb("OPTIONS")
+"""Declare an OPTIONS route."""
 
 
-def route(method: str) -> _Verb:
-    """Any other HTTP method: ``nanoapi.route("PROPFIND")("/x", response=...)``."""
-    return _Verb(method.upper())
+def route(method: str) -> Verb:
+    """Get a [`Verb`][nanoapi.Verb] for any HTTP method.
+
+    Example:
+        ```python
+        propfind = nanoapi.route("PROPFIND")("/dav/{path}", request=DavPath, response=str)
+        ```
+
+    Args:
+        method: The HTTP method; any case.
+
+    Returns:
+        A verb that declares routes with that method.
+    """
+    return Verb(method.upper())
 
 
 class Routes:
-    """Base for a reusable group of routes. Mix it into ``Client`` / ``AsyncClient``.
+    """Base for a reusable group of routes, optionally under a common path prefix.
 
-    ``class Users(nanoapi.Routes, prefix="/users"): ...`` prefixes every route path.
+    Mix groups into a [`Client`][nanoapi.Client] and an
+    [`AsyncClient`][nanoapi.AsyncClient] to share one set of route declarations between
+    a sync and an async SDK.
+
+    Example:
+        ```python
+        class Users(nanoapi.Routes, prefix="/users"):
+            get = nanoapi.get("/{user_id}", request=GetUser, response=User)  # /users/{user_id}
+
+        class Api(Users, Billing, nanoapi.Client): ...
+        class AsyncApi(Users, Billing, nanoapi.AsyncClient): ...
+        ```
+
+    Pass `prefix=` as a class keyword to prepend it to every route declared in the class
+    body.
     """
 
     def __init_subclass__(cls, *, prefix: str = "", **kwargs: Any) -> None:
@@ -430,10 +628,23 @@ class Routes:
 
 
 class PaginatedRoute[**P, ReqT, RespT, ItemT]:
-    """A route plus the rules for walking its pages. Made by ``Route.paginate``.
+    """A route plus the rules for walking its pages.
 
-    Bound to a client it gains ``.iter(...)`` (items across all pages) and
-    ``.pages(...)`` (``Page`` objects); calling it still fetches just the first page.
+    Made by [`Route.paginate`][nanoapi.Route.paginate].
+
+    Bound to a client it becomes a [`BoundPaginatedRoute`][nanoapi.BoundPaginatedRoute]
+    (or the async twin): calling it still fetches just the first page, and `.iter(...)`
+    / `.pages(...)` walk all of them. `ItemT` is the type of each item.
+
+    Args:
+        route: The underlying route, which fetches one page.
+        items: Extracts the item list from a decoded page.
+        next: The strategy that picks the next page's request.
+
+    Attributes:
+        route: The underlying route.
+        items: Extracts the item list from a decoded page.
+        next_page: The strategy that picks the next page's request.
     """
 
     def __init__(
@@ -465,9 +676,19 @@ class PaginatedRoute[**P, ReqT, RespT, ItemT]:
         return self if bind is None else bind(self)
 
     def with_prefix(self, prefix: str) -> Self:
+        """Return a copy whose underlying route has `prefix` prepended to its path."""
         return type(self)(self.route.with_prefix(prefix), items=self.items, next=self.next_page)
 
     def make_page(self, request: ReqT, response: httpx.Response) -> Page[ReqT, RespT, ItemT]:
+        """Decode a response into a [`Page`][nanoapi.Page].
+
+        Args:
+            request: The request model that produced `response`.
+            response: A successful response.
+
+        Returns:
+            The page, with its items extracted.
+        """
         data = self.route.parse(response)
         return Page(request, data, list(self.items(data)), response)
 

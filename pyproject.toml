@@ -38,6 +38,11 @@ dev = [
     "pandas>=3.1.0",
     "pandas-stubs>=3.0.5.260914",
 ]
+docs = [
+    "mkdocs>=1.6.1,<2",  # MkDocs 2 drops the plugin system mkdocstrings needs
+    "mkdocs-material>=9.7.7",
+    "mkdocstrings[python]>=1.0.8",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nanoapi"]
@@ -53,6 +58,9 @@ src = ["src", "tests"]
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
+# Constructor args are documented in the class docstring (rendered with the signature);
+# dunder methods follow their protocol and need no docstring.
+ignore = ["D105", "D107"]
 select = [
     "E", "W",  # pycodestyle
     "F",       # pyflakes
@@ -67,14 +75,23 @@ select = [
     "PIE",
     "RET",
     "FA",      # future annotations
+    "D",       # pydocstyle: docstrings (rendered as the API docs)
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Docstrings are required for the library, not for tests and examples.
+"tests/**" = ["D"]
+"examples/**" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["nanoapi"]
 
 [tool.pyright]
 include = ["src", "tests/typecheck.py", "examples"]
-exclude = ["examples/petstore-workspace"]  # its own uv workspace, env and checks
+exclude = ["examples/petstore-workspace", "examples/realtime-trains"]  # own envs and checks
 typeCheckingMode = "strict"
 pythonVersion = "3.13"
 enableTypeIgnoreComments = false
@@ -85,7 +102,7 @@ python-version = "3.13"
 
 [tool.ty.src]
 include = ["src", "tests/typecheck.py", "examples"]
-exclude = ["examples/petstore-workspace"]
+exclude = ["examples/petstore-workspace", "examples/realtime-trains"]
 
 [tool.ty.rules]
 unused-ignore-comment = "error"
@@ -94,4 +111,4 @@ unused-ignore-comment = "error"
 strict = true
 python_version = "3.13"
 files = ["src", "tests/typecheck.py", "examples"]
-exclude = ["^examples/petstore-workspace/"]
+exclude = ["^examples/(petstore-workspace|realtime-trains)/"]

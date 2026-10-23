@@ -37,6 +37,7 @@ pip install -e ".[polars]"  # or without uv; extras: polars, pandas
 
 Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
 
+<!-- --8<-- [start:guide] -->
 ## Declaring routes
 
 ```python
@@ -244,6 +245,8 @@ Invalid *arguments* raise pydantic's `ValidationError` before anything is sent.
 Override `raise_for_status(self, response)` on your client to map errors your own way
 (see [Custom behaviour](#custom-behaviour)).
 
+<!-- --8<-- [end:guide] -->
+
 ## Development
 
 ```bash
@@ -253,6 +256,14 @@ uv run pytest            # runtime tests (httpx.MockTransport, no network)
 uv run pyright           # strict, incl. tests/typecheck.py assert_type + must-fail cases
 uv run mypy              # strict
 uv run ty check          # Astral's ty (3 of the 5 must-fail cases; see typecheck.py)
+```
+
+API docs are generated from the docstrings with MkDocs + mkdocstrings (ruff's `D` rules,
+Google convention, require docstrings on everything public in `src/`):
+
+```bash
+uv run --group docs mkdocs serve           # live preview at http://127.0.0.1:8000
+uv run --group docs mkdocs build --strict  # fails on broken cross-references
 ```
 
 See [`examples/`](examples/README.md) for runnable SDKs against GitHub, PokéAPI and

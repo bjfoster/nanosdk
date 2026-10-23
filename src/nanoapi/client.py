@@ -1,3 +1,14 @@
+"""The clients, and the bound routes you get when you access a route on one.
+
+```python
+class GitHub(nanoapi.Client):
+    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+
+with GitHub("https://api.github.com") as gh:
+    user = gh.get_user(username="octocat")      # gh.get_user is a BoundRoute
+```
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,10 +21,10 @@ from typing import Any, Self
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
-from ._errors import APIConnectionError, APIStatusError, APITimeoutError
-from ._paginate import Page
-from ._retry import Retry
-from ._route import PaginatedRoute, Route, Routes
+from .errors import APIConnectionError, APIStatusError, APITimeoutError
+from .pagination import Page
+from .retry import Retry
+from .routing import PaginatedRoute, Route, Routes
 
 __all__ = [
     "AsyncBoundPaginatedRoute",
@@ -25,7 +36,10 @@ __all__ = [
 ]
 
 type TimeoutTypes = float | httpx.Timeout | None
+"""A timeout in seconds, an `httpx.Timeout`, or `None` for no timeout."""
+
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+"""30 seconds per read/write/pool wait, 10 to connect."""
 
 
 class _NotGiven:
@@ -37,7 +51,7 @@ NOT_GIVEN = _NotGiven()
 
 
 class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
-    """Shared plumbing for ``Client`` and ``AsyncClient``."""
+    """Shared plumbing for `Client` and `AsyncClient`."""
 
     _http: HttpT
 
@@ -81,9 +95,24 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
         timeout: TimeoutTypes | _NotGiven = NOT_GIVEN,
         retry: Retry | _NotGiven | None = NOT_GIVEN,
     ) -> Self:
-        """A copy with extra headers / a different timeout or retry policy.
+        """Return a copy of the client with extra headers or a different timeout/retry.
 
-        The copy shares the connection pool and never closes it; close the original.
+        The copy is the same class, so all routes are available on it, and it shares
+        the original's connection pool. It never closes the pool: close the original.
+
+        Example:
+            ```python
+            scoped = api.with_options(headers={"Authorization": f"Bearer {token}"})
+            slow = api.with_options(timeout=120, retry=None)
+            ```
+
+        Args:
+            headers: Headers added to every request, on top of existing ones.
+            timeout: Replaces the timeout; `None` disables it.
+            retry: Replaces the retry policy; `None` disables retries.
+
+        Returns:
+            The configured copy.
         """
         clone = copy.copy(self)
         clone._extra_headers = {**self._extra_headers, **(headers or {})}
@@ -96,20 +125,45 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
 
     @property
     def http(self) -> HttpT:
-        """The underlying httpx client."""
+        """The underlying httpx client, for anything nanoapi doesn't wrap."""
         return self._http
 
     # -- overridable behaviour ----------------------------------------------
 
     def retry_policy(self, route: Route[Any, Any, Any]) -> Retry | None:
-        """The retry policy for ``route``. Default: the client's ``retry=``.
+        """Choose the retry policy for a route. Override to vary it per route.
 
-        Override to vary it per route, e.g. ``None if route.meta.get("no_retry") else ...``.
+        Example:
+            ```python
+            def retry_policy(self, route):
+                if route.meta.get("no_retry"):
+                    return None
+                return super().retry_policy(route)
+            ```
+
+        Args:
+            route: The route about to be sent.
+
+        Returns:
+            The policy to use, or `None` for no retries. By default, the client's
+            `retry=` setting.
         """
         return self._retry
 
     def raise_for_status(self, response: httpx.Response) -> None:
-        """Override to customise error handling. Default: raise ``APIStatusError`` on 4xx/5xx."""
+        """Raise if `response` is an error. Override to map errors your own way.
+
+        Called after `process_response` and before decoding, for every call except
+        `send_raw` / `.raw()`. The default raises
+        [`APIStatusError`][nanoapi.APIStatusError] on a 4xx or 5xx status, with the body
+        parsed by the client's `error_model` when one is set.
+
+        Args:
+            response: The final response for a call.
+
+        Raises:
+            APIStatusError: If the status is 4xx or 5xx.
+        """
         if not response.is_error:
             return
         try:
@@ -129,9 +183,19 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
     def build_request[ReqT](
         self, route: Route[Any, ReqT, Any], request: ReqT, *, url: httpx.URL | None = None
     ) -> httpx.Request:
-        """Build (but don't send) the ``httpx.Request`` for ``route`` + ``request``.
+        """Build, but don't send, the request for a route and request model.
 
-        ``url`` replaces the route's URL and query string (used to follow pagination links).
+        Includes the client's headers and timeout. Auth and the `prepare_request` hook
+        are applied only when sending.
+
+        Args:
+            route: The route.
+            request: An instance of the route's request model (`None` if it has none).
+            url: Replaces the route's URL and query string; used to follow pagination
+                links.
+
+        Returns:
+            The unsent request.
         """
         enc = route.encode(request)
         headers = {**self._extra_headers, **enc.headers}
@@ -162,7 +226,7 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
         page: Page[ReqT, Any, Any],
         url: httpx.URL | None,
     ) -> tuple[ReqT, httpx.URL | None] | None:
-        """Where the page after ``page`` comes from, or ``None`` when done (or stuck)."""
+        """Where the page after `page` comes from, or `None` when done (or stuck)."""
         nxt = route.next_page(page)
         if nxt is None:
             return None
@@ -175,15 +239,42 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
 
 
 class Client(_BaseClient[httpx.Client]):
-    """Synchronous API client.
+    """Synchronous API client, built on `httpx.Client`.
 
-    Subclass it and declare routes as class attributes::
+    Subclass it and declare routes as class attributes; on an instance each route
+    becomes a [`BoundRoute`][nanoapi.BoundRoute] method:
 
-        class GitHub(nanoapi.Client):
-            get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+    ```python
+    class GitHub(nanoapi.Client):
+        get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
 
-        gh = GitHub("https://api.github.com")
+    with GitHub("https://api.github.com") as gh:
         user = gh.get_user(username="octocat")  # -> User
+    ```
+
+    Customise behaviour by overriding [`prepare_request`][nanoapi.Client.prepare_request],
+    [`process_response`][nanoapi.Client.process_response],
+    [`raise_for_status`][nanoapi.Client.raise_for_status] or
+    [`retry_policy`][nanoapi.Client.retry_policy]. Use the client as a context manager,
+    or call [`close`][nanoapi.Client.close], to release connections.
+
+    Args:
+        base_url: Prefix for every route path, such as `"https://api.example.com/v2"`.
+        headers: Headers sent with every request.
+        timeout: Seconds, an `httpx.Timeout`, or `None` to wait forever.
+        auth: Any `httpx.Auth` (see [`nanoapi.auth`][nanoapi.auth]) or a
+            `(username, password)` tuple for basic auth.
+        error_model: A type to parse 4xx/5xx bodies into, exposed as
+            [`APIStatusError.error`][nanoapi.APIStatusError].
+        retry: Retry policy for transient failures; `None` (the default) never retries.
+        http_client: Use this `httpx.Client` instead of creating one. It isn't closed
+            for you, and can't be combined with `base_url`, `headers`, `auth` or
+            `httpx_kwargs`: configure it directly.
+        **httpx_kwargs: Any other `httpx.Client` argument (`transport`, `proxy`,
+            `verify`, `limits`, `event_hooks`, ...).
+
+    Raises:
+        ValueError: If `http_client` is combined with options that configure httpx.
     """
 
     def __init__(
@@ -216,13 +307,44 @@ class Client(_BaseClient[httpx.Client]):
     # -- hooks ----------------------------------------------------------------
 
     def prepare_request(self, request: httpx.Request, route: Route[Any, Any, Any]) -> httpx.Request:
-        """Called on every outgoing request (each retry too). Sign, log, rewrite..."""
+        """Hook called on every outgoing request, including each retry. Override it.
+
+        Use it to sign requests, add per-request headers or log. Auth from `auth=` is
+        applied after this hook.
+
+        Example:
+            ```python
+            def prepare_request(self, request, route):
+                if route.meta.get("signed", True):
+                    request.headers["X-Signature"] = sign(request)
+                return request
+            ```
+
+        Args:
+            request: The request about to be sent.
+            route: The route being called; read `route.name` or `route.meta`.
+
+        Returns:
+            The request to send: `request` itself (modified or not) or a replacement.
+        """
         return request
 
     def process_response(
         self, response: httpx.Response, route: Route[Any, Any, Any]
     ) -> httpx.Response:
-        """Called on every final response, before the status check and decoding."""
+        """Hook called on every final response, before the status check and decoding.
+
+        Override it to unwrap response envelopes, record rate limits or log. Responses
+        that are retried don't reach it.
+
+        Args:
+            response: The response.
+            route: The route that was called.
+
+        Returns:
+            The response to check and decode: `response` or a replacement. Pass
+            `request=response.request` when building a new `httpx.Response`.
+        """
         return response
 
     # -- sending --------------------------------------------------------------
@@ -230,17 +352,58 @@ class Client(_BaseClient[httpx.Client]):
     def call[**P, ReqT, RespT](
         self, route: Route[P, ReqT, RespT], /, *args: P.args, **kwargs: P.kwargs
     ) -> RespT:
-        """Call any route without declaring it on the class: ``client.call(get_user, id=1)``."""
+        """Call a route that isn't declared on the client class.
+
+        Example:
+            ```python
+            get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+            user = client.call(get_user, user_id=1)
+            ```
+
+        Args:
+            route: The route to call.
+            *args: Positional arguments for the route's request model.
+            **kwargs: Keyword arguments for the route's request model.
+
+        Returns:
+            The decoded response.
+        """
         return self.send(route, route.build_model(*args, **kwargs))
 
     def send[ReqT, RespT](self, route: Route[Any, ReqT, RespT], request: ReqT) -> RespT:
-        """Send a pre-built request model and decode the response."""
+        """Send an already-built request model and decode the response.
+
+        Args:
+            route: The route to call.
+            request: An instance of the route's request model.
+
+        Returns:
+            The decoded response.
+
+        Raises:
+            APIStatusError: On a 4xx/5xx response (see `raise_for_status`).
+            APIConnectionError: If no response arrived, after any retries.
+            ResponseValidationError: If the body doesn't match the response type.
+        """
         response = self.send_raw(route, request)
         self.raise_for_status(response)
         return route.parse(response)
 
     def send_raw[ReqT](self, route: Route[Any, ReqT, Any], request: ReqT) -> httpx.Response:
-        """Send (with hooks and retries) and return the ``httpx.Response`` undecoded."""
+        """Send a request model and return the response without checking or decoding it.
+
+        Hooks and retries still apply; `raise_for_status` doesn't.
+
+        Args:
+            route: The route to call.
+            request: An instance of the route's request model.
+
+        Returns:
+            The response, whatever its status.
+
+        Raises:
+            APIConnectionError: If no response arrived, after any retries.
+        """
         return self._send(route, request, None)
 
     def _send[ReqT](
@@ -268,14 +431,34 @@ class Client(_BaseClient[httpx.Client]):
     def iter[**P, ReqT, RespT, ItemT](
         self, route: PaginatedRoute[P, ReqT, RespT, ItemT], /, *args: P.args, **kwargs: P.kwargs
     ) -> Iterator[ItemT]:
-        """Every item on every page, fetched lazily."""
+        """Iterate over every item on every page of a paginated route.
+
+        Arguments are validated immediately; pages are fetched as you iterate.
+
+        Args:
+            route: The paginated route.
+            *args: Positional arguments for the first page's request model.
+            **kwargs: Keyword arguments for the first page's request model.
+
+        Returns:
+            A lazy iterator over the items.
+        """
         pages = self._pages(route, route.route.build_model(*args, **kwargs))
         return (item for page in pages for item in page.items)
 
     def pages[**P, ReqT, RespT, ItemT](
         self, route: PaginatedRoute[P, ReqT, RespT, ItemT], /, *args: P.args, **kwargs: P.kwargs
     ) -> Iterator[Page[ReqT, RespT, ItemT]]:
-        """Every page, fetched lazily."""
+        """Iterate over every page of a paginated route.
+
+        Args:
+            route: The paginated route.
+            *args: Positional arguments for the first page's request model.
+            **kwargs: Keyword arguments for the first page's request model.
+
+        Returns:
+            A lazy iterator over [`Page`][nanoapi.Page] objects.
+        """
         return self._pages(route, route.route.build_model(*args, **kwargs))
 
     def _pages[ReqT, RespT, ItemT](
@@ -295,6 +478,7 @@ class Client(_BaseClient[httpx.Client]):
     # -- lifecycle ------------------------------------------------------------
 
     def close(self) -> None:
+        """Close the connection pool, unless it came from `http_client=`."""
         if self._owns_http:
             self._http.close()
 
@@ -311,7 +495,34 @@ class Client(_BaseClient[httpx.Client]):
 
 
 class AsyncClient(_BaseClient[httpx.AsyncClient]):
-    """Async twin of ``Client``: every route call returns an awaitable."""
+    """Asynchronous API client, built on `httpx.AsyncClient`.
+
+    The async twin of [`Client`][nanoapi.Client], with the same constructor arguments
+    (`http_client` takes an `httpx.AsyncClient`). Route calls return awaitables,
+    paginated routes give async iterators, and the `prepare_request` /
+    `process_response` hooks are `async def`.
+
+    ```python
+    class AsyncGitHub(Users, Repos, nanoapi.AsyncClient): ...
+
+    async with AsyncGitHub("https://api.github.com") as gh:
+        user = await gh.get_user(username="octocat")
+        async for repo in gh.list_repos.iter(username="octocat"): ...
+    ```
+
+    Args:
+        base_url: Prefix for every route path.
+        headers: Headers sent with every request.
+        timeout: Seconds, an `httpx.Timeout`, or `None` to wait forever.
+        auth: Any `httpx.Auth` or a `(username, password)` tuple.
+        error_model: A type to parse 4xx/5xx bodies into.
+        retry: Retry policy for transient failures; `None` never retries.
+        http_client: Use this `httpx.AsyncClient` instead of creating one.
+        **httpx_kwargs: Any other `httpx.AsyncClient` argument.
+
+    Raises:
+        ValueError: If `http_client` is combined with options that configure httpx.
+    """
 
     def __init__(
         self,
@@ -345,13 +556,33 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     async def prepare_request(
         self, request: httpx.Request, route: Route[Any, Any, Any]
     ) -> httpx.Request:
-        """Called on every outgoing request (each retry too). Sign, log, rewrite..."""
+        """Hook called on every outgoing request, including each retry.
+
+        The async version of [`Client.prepare_request`][nanoapi.Client.prepare_request].
+
+        Args:
+            request: The request about to be sent.
+            route: The route being called.
+
+        Returns:
+            The request to send.
+        """
         return request
 
     async def process_response(
         self, response: httpx.Response, route: Route[Any, Any, Any]
     ) -> httpx.Response:
-        """Called on every final response, before the status check and decoding."""
+        """Hook called on every final response, before the status check and decoding.
+
+        The async version of [`Client.process_response`][nanoapi.Client.process_response].
+
+        Args:
+            response: The response.
+            route: The route that was called.
+
+        Returns:
+            The response to check and decode.
+        """
         return response
 
     # -- sending --------------------------------------------------------------
@@ -359,14 +590,42 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     async def call[**P, ReqT, RespT](
         self, route: Route[P, ReqT, RespT], /, *args: P.args, **kwargs: P.kwargs
     ) -> RespT:
+        """Call a route that isn't declared on the client class; see `Client.call`.
+
+        Args:
+            route: The route to call.
+            *args: Positional arguments for the route's request model.
+            **kwargs: Keyword arguments for the route's request model.
+
+        Returns:
+            The decoded response.
+        """
         return await self.send(route, route.build_model(*args, **kwargs))
 
     async def send[ReqT, RespT](self, route: Route[Any, ReqT, RespT], request: ReqT) -> RespT:
+        """Send an already-built request model and decode the response; see `Client.send`.
+
+        Args:
+            route: The route to call.
+            request: An instance of the route's request model.
+
+        Returns:
+            The decoded response.
+        """
         response = await self.send_raw(route, request)
         self.raise_for_status(response)
         return route.parse(response)
 
     async def send_raw[ReqT](self, route: Route[Any, ReqT, Any], request: ReqT) -> httpx.Response:
+        """Send without checking the status or decoding; see `Client.send_raw`.
+
+        Args:
+            route: The route to call.
+            request: An instance of the route's request model.
+
+        Returns:
+            The response, whatever its status.
+        """
         return await self._send(route, request, None)
 
     async def _send[ReqT](
@@ -396,13 +655,34 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     def iter[**P, ReqT, RespT, ItemT](
         self, route: PaginatedRoute[P, ReqT, RespT, ItemT], /, *args: P.args, **kwargs: P.kwargs
     ) -> AsyncIterator[ItemT]:
-        """Every item on every page: ``async for post in client.iter(route, ...)``."""
+        """Iterate over every item on every page: `async for post in client.iter(route)`.
+
+        Arguments are validated immediately; pages are fetched as you iterate.
+
+        Args:
+            route: The paginated route.
+            *args: Positional arguments for the first page's request model.
+            **kwargs: Keyword arguments for the first page's request model.
+
+        Returns:
+            A lazy async iterator over the items.
+        """
         pages = self._pages(route, route.route.build_model(*args, **kwargs))
         return self._items(pages)
 
     def pages[**P, ReqT, RespT, ItemT](
         self, route: PaginatedRoute[P, ReqT, RespT, ItemT], /, *args: P.args, **kwargs: P.kwargs
     ) -> AsyncIterator[Page[ReqT, RespT, ItemT]]:
+        """Iterate over every page of a paginated route: `async for page in ...`.
+
+        Args:
+            route: The paginated route.
+            *args: Positional arguments for the first page's request model.
+            **kwargs: Keyword arguments for the first page's request model.
+
+        Returns:
+            A lazy async iterator over [`Page`][nanoapi.Page] objects.
+        """
         return self._pages(route, route.route.build_model(*args, **kwargs))
 
     @staticmethod
@@ -428,6 +708,7 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     # -- lifecycle ------------------------------------------------------------
 
     async def aclose(self) -> None:
+        """Close the connection pool, unless it came from `http_client=`."""
         if self._owns_http:
             await self._http.aclose()
 
@@ -444,7 +725,22 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
 
 
 class BoundRoute[**P, ReqT, RespT]:
-    """A route attached to a ``Client``. Call it like the request model's constructor."""
+    """A route attached to a [`Client`][nanoapi.Client]; what `api.some_route` gives you.
+
+    Call it with the request model's arguments to send the request and get the decoded
+    response. The other methods are variations for when you need more control.
+
+    ```python
+    api.get_user(user_id=1)                 # -> User
+    api.get_user.send(GetUser(user_id=1))   # already-built model
+    api.get_user.raw(user_id=1)             # httpx.Response, no status check / decoding
+    api.get_user.build_request(user_id=1)   # httpx.Request, not sent
+    ```
+
+    Attributes:
+        route: The underlying [`Route`][nanoapi.Route].
+        client: The client it's bound to.
+    """
 
     __slots__ = ("client", "route")
 
@@ -453,18 +749,48 @@ class BoundRoute[**P, ReqT, RespT]:
         self.client = client
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> RespT:
+        """Build the request model from the arguments, send it, and decode the response.
+
+        Returns:
+            The decoded response.
+
+        Raises:
+            pydantic.ValidationError: If the arguments are invalid; nothing is sent.
+            APIStatusError: On a 4xx/5xx response.
+            APIConnectionError: If no response arrived, after any retries.
+            ResponseValidationError: If the body doesn't match the response type.
+        """
         return self.client.send(self.route, self.route.build_model(*args, **kwargs))
 
     def send(self, request: ReqT) -> RespT:
-        """Send an already-built request model."""
+        """Send an already-built request model and decode the response.
+
+        Args:
+            request: An instance of the route's request model.
+
+        Returns:
+            The decoded response.
+        """
         return self.client.send(self.route, request)
 
     def raw(self, *args: P.args, **kwargs: P.kwargs) -> httpx.Response:
-        """Like calling the route, but returns the raw ``httpx.Response`` (no status check)."""
+        """Like calling the route, but return the `httpx.Response` as-is.
+
+        Hooks and retries apply; there's no status check and no decoding.
+
+        Returns:
+            The response, whatever its status.
+        """
         return self.client.send_raw(self.route, self.route.build_model(*args, **kwargs))
 
     def build_request(self, *args: P.args, **kwargs: P.kwargs) -> httpx.Request:
-        """The ``httpx.Request`` that calling the route would send (before ``prepare_request``)."""
+        """Build the request that calling the route would send, without sending it.
+
+        Auth and the `prepare_request` hook aren't applied; they run at send time.
+
+        Returns:
+            The unsent request.
+        """
         return self.client.build_request(self.route, self.route.build_model(*args, **kwargs))
 
     def __repr__(self) -> str:
@@ -472,7 +798,20 @@ class BoundRoute[**P, ReqT, RespT]:
 
 
 class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
-    """A paginated route attached to a ``Client``. Calling it fetches the first page."""
+    """A paginated route attached to a [`Client`][nanoapi.Client].
+
+    Calling it fetches just the first page, like any [`BoundRoute`][nanoapi.BoundRoute];
+    `iter` and `pages` walk all of them.
+
+    ```python
+    first = api.list_posts(limit=50)            # the first page's response
+    for post in api.list_posts.iter(limit=50):  # every post, page by page
+        ...
+    ```
+
+    Attributes:
+        paginated: The underlying [`PaginatedRoute`][nanoapi.PaginatedRoute].
+    """
 
     __slots__ = ("paginated",)
 
@@ -481,16 +820,35 @@ class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
         self.paginated = paginated
 
     def iter(self, *args: P.args, **kwargs: P.kwargs) -> Iterator[ItemT]:
-        """Every item on every page, fetched lazily."""
+        """Iterate over every item on every page.
+
+        Arguments are validated immediately; pages are fetched as you iterate, so
+        `itertools.islice` or `break` stops further requests.
+
+        Returns:
+            A lazy iterator over the items.
+        """
         return self.client.iter(self.paginated, *args, **kwargs)
 
     def pages(self, *args: P.args, **kwargs: P.kwargs) -> Iterator[Page[ReqT, RespT, ItemT]]:
-        """Every page, fetched lazily."""
+        """Iterate over every page, with each page's request, data, items and response.
+
+        Returns:
+            A lazy iterator over [`Page`][nanoapi.Page] objects.
+        """
         return self.client.pages(self.paginated, *args, **kwargs)
 
 
 class AsyncBoundRoute[**P, ReqT, RespT]:
-    """A route attached to an ``AsyncClient``. Calling it returns an awaitable."""
+    """A route attached to an [`AsyncClient`][nanoapi.AsyncClient].
+
+    The async twin of [`BoundRoute`][nanoapi.BoundRoute]: calling it, `send` and `raw`
+    return awaitables.
+
+    Attributes:
+        route: The underlying [`Route`][nanoapi.Route].
+        client: The client it's bound to.
+    """
 
     __slots__ = ("client", "route")
 
@@ -499,15 +857,38 @@ class AsyncBoundRoute[**P, ReqT, RespT]:
         self.client = client
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> RespT:
+        """Build the request model, send it, and decode the response.
+
+        Returns:
+            The decoded response.
+        """
         return await self.client.send(self.route, self.route.build_model(*args, **kwargs))
 
     async def send(self, request: ReqT) -> RespT:
+        """Send an already-built request model and decode the response.
+
+        Args:
+            request: An instance of the route's request model.
+
+        Returns:
+            The decoded response.
+        """
         return await self.client.send(self.route, request)
 
     async def raw(self, *args: P.args, **kwargs: P.kwargs) -> httpx.Response:
+        """Like calling the route, but return the `httpx.Response` as-is.
+
+        Returns:
+            The response, whatever its status.
+        """
         return await self.client.send_raw(self.route, self.route.build_model(*args, **kwargs))
 
     def build_request(self, *args: P.args, **kwargs: P.kwargs) -> httpx.Request:
+        """Build the request that calling the route would send, without sending it.
+
+        Returns:
+            The unsent request.
+        """
         return self.client.build_request(self.route, self.route.build_model(*args, **kwargs))
 
     def __repr__(self) -> str:
@@ -515,7 +896,16 @@ class AsyncBoundRoute[**P, ReqT, RespT]:
 
 
 class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT, RespT]):
-    """A paginated route attached to an ``AsyncClient``. Use with ``async for``."""
+    """A paginated route attached to an [`AsyncClient`][nanoapi.AsyncClient].
+
+    ```python
+    async for post in api.list_posts.iter(limit=50):
+        ...
+    ```
+
+    Attributes:
+        paginated: The underlying [`PaginatedRoute`][nanoapi.PaginatedRoute].
+    """
 
     __slots__ = ("paginated",)
 
@@ -526,7 +916,17 @@ class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT,
         self.paginated = paginated
 
     def iter(self, *args: P.args, **kwargs: P.kwargs) -> AsyncIterator[ItemT]:
+        """Iterate over every item on every page with `async for`.
+
+        Returns:
+            A lazy async iterator over the items.
+        """
         return self.client.iter(self.paginated, *args, **kwargs)
 
     def pages(self, *args: P.args, **kwargs: P.kwargs) -> AsyncIterator[Page[ReqT, RespT, ItemT]]:
+        """Iterate over every page with `async for`.
+
+        Returns:
+            A lazy async iterator over [`Page`][nanoapi.Page] objects.
+        """
         return self.client.pages(self.paginated, *args, **kwargs)

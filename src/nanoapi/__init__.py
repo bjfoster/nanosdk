@@ -1,26 +1,31 @@
-"""nanoapi — a tiny, fully typed HTTP client core on httpx + pydantic.
+"""nanoapi: a tiny, fully typed HTTP client core on httpx + pydantic.
 
-Declare routes, get a typed client::
+Declare routes, get a typed client:
 
-    import nanoapi
-    from pydantic import BaseModel
+```python
+import nanoapi
+from pydantic import BaseModel
 
-    class User(BaseModel):
-        id: int
-        login: str
+class User(BaseModel):
+    id: int
+    login: str
 
-    class GetUser(BaseModel):
-        username: str
+class GetUser(BaseModel):
+    username: str
 
-    class GitHub(nanoapi.Client):
-        get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+class GitHub(nanoapi.Client):
+    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
 
-    with GitHub("https://api.github.com") as gh:
-        user = gh.get_user(username="octocat")  # typed: User
+with GitHub("https://api.github.com") as gh:
+    user = gh.get_user(username="octocat")  # typed: User
+```
+
+Everything public is importable from `nanoapi` directly, plus the
+[`nanoapi.auth`][nanoapi.auth] and [`nanoapi.frames`][nanoapi.frames] modules.
 """
 
 from . import auth, frames
-from ._client import (
+from .client import (
     NOT_GIVEN,
     AsyncBoundPaginatedRoute,
     AsyncBoundRoute,
@@ -29,20 +34,21 @@ from ._client import (
     BoundRoute,
     Client,
 )
-from ._errors import (
+from .errors import (
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
     NanoAPIError,
     ResponseValidationError,
 )
-from ._paginate import Cursor, LinkHeader, NextPage, Offset, Page, PageNumber
-from ._params import Body, File, Form, Header, Json, Location, Param, Path, Query
-from ._retry import Retry
-from ._route import (
+from .pagination import Cursor, LinkHeader, NextPage, Offset, Page, PageNumber
+from .params import Body, File, Form, Header, Json, Location, Param, Path, Query
+from .retry import Retry
+from .routing import (
     PaginatedRoute,
     Route,
     Routes,
+    Verb,
     delete,
     get,
     head,
@@ -87,6 +93,7 @@ __all__ = [
     "Retry",
     "Route",
     "Routes",
+    "Verb",
     "auth",
     "delete",
     "frames",
