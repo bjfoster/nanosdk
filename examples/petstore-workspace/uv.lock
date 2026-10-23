@@ -581,28 +581,26 @@ codegen = [
 requires-dist = [
     { name = "datamodel-code-generator", extras = ["ruff"], marker = "extra == 'codegen'", specifier = ">=0.86" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2" },
+    { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2.2.2" },
     { name = "polars", marker = "extra == 'polars'", specifier = ">=1" },
     { name = "pydantic", specifier = ">=2.6" },
-    { name = "pyyaml", marker = "extra == 'codegen'", specifier = ">=6" },
+    { name = "pyyaml", marker = "extra == 'codegen'", specifier = ">=6.0.1" },
 ]
 provides-extras = ["polars", "pandas", "codegen"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "actionlint-py", specifier = ">=1.7.12" },
-    { name = "datamodel-code-generator", extras = ["ruff"], specifier = ">=0.86" },
-    { name = "mypy", specifier = ">=1.12" },
+    { name = "mypy", specifier = ">=2.4.0" },
+    { name = "nanosdk", extras = ["polars", "pandas", "codegen"] },
     { name = "openapi-spec-validator", specifier = ">=0.9.0" },
-    { name = "pandas", specifier = ">=3.1.0" },
     { name = "pandas-stubs", specifier = ">=3.0.5.260914" },
-    { name = "polars", specifier = ">=2.0.0" },
     { name = "prek", specifier = ">=0.5.5" },
-    { name = "pyright" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "ruff" },
+    { name = "pyright", specifier = ">=1.1.414" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-cov", specifier = ">=7" },
+    { name = "ruff", specifier = ">=0.17.2" },
     { name = "ty", specifier = ">=0.0.91" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260906" },
 ]

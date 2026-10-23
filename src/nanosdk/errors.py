@@ -88,8 +88,8 @@ class APIStatusError(NanoSDKError):
 
     def __init__(self, response: httpx.Response, *, body: Any, error: Any = None) -> None:
         self.response = response
-        self.request = response.request
-        self.status_code = response.status_code
+        self.request: httpx.Request = response.request
+        self.status_code: int = response.status_code
         self.body = body
         self.error = error
         super().__init__(

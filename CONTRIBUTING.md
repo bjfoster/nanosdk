@@ -17,12 +17,18 @@ and the type checkers before each push. `uv run prek run --all-files` runs them 
 ```bash
 uv run ruff check . && uv run ruff format --check .
 uv run pytest                        # unit tests (offline, httpx.MockTransport)
+uv run pytest --cov                  # with coverage; fails below 90%
 uv run pyright && uv run mypy && uv run ty check   # all strict; tests/typecheck.py
                                      # holds assert_type and must-fail cases
+uv run pyright --verifytypes nanosdk --ignoreexternal   # public API fully typed (100%)
 uv run --group docs mkdocs build --strict          # API docs from the docstrings
 uv run pytest -m e2e                 # opt-in: generate clients for 5 real-world specs,
                                      # strict-pyright them, call the live APIs
 ```
+
+CI also runs the tests with every direct dependency at its declared lower bound, on the
+oldest supported Python (`uv sync --resolution lowest-direct`). If you start relying on
+something newer, raise the bound in `pyproject.toml`.
 
 Every public object in `src/` needs a Google-style docstring (ruff's `D` rules): the API
 reference is generated from them. `uv run --group docs mkdocs serve` previews the docs.
