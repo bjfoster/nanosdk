@@ -281,7 +281,7 @@ def test_cli(
         "rename = { listItems = 'items' }\n"
     )
     main(["generate"])
-    assert "wrote cli_gen/client.py" in capsys.readouterr().out
+    assert f"wrote {Path('cli_gen', 'client.py')}" in capsys.readouterr().out  # native separators
     assert "    items = nanosdk.get(" in (tmp_path / "cli_gen/client.py").read_text()
 
     main(["generate", "--check"])
