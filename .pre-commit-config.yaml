@@ -60,6 +60,11 @@ repos:
         language: system
         types_or: [python, pyi]
         require_serial: true
+      - id: actionlint
+        name: actionlint (GitHub workflows)
+        entry: uv run --frozen actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
       - id: pyright
         name: pyright
         entry: uv run --frozen pyright

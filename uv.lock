@@ -14,6 +14,12 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "actionlint-py"
+version = "1.7.12.25"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/75/36ee89db39bb3620d1e46fe1f6ec77d6000d30ff45345699e51b4c850e83/actionlint_py-1.7.12.25.tar.gz", hash = "sha256:83f83be4cd317c79b15cbb7022787513a6994f00bfb2dd8da02fa4e62b4f640d", size = 12438, upload-time = "2026-09-22T16:24:42.477Z" }
+
+[[package]]
 name = "annotated-types"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -971,6 +977,7 @@ polars = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "actionlint-py" },
     { name = "datamodel-code-generator", extra = ["ruff"] },
     { name = "mypy" },
     { name = "openapi-spec-validator" },
@@ -1005,6 +1012,7 @@ provides-extras = ["polars", "pandas", "codegen"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "actionlint-py", specifier = ">=1.7.12" },
     { name = "datamodel-code-generator", extras = ["ruff"], specifier = ">=0.86" },
     { name = "mypy", specifier = ">=1.12" },
     { name = "openapi-spec-validator", specifier = ">=0.9.0" },

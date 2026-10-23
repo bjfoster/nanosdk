@@ -43,5 +43,8 @@ PR title must be conventional too (CI checks it).
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please):
 every push to `main` updates a release PR with the next version (from the commit types)
-and the changelog. Merging that PR tags the release, publishes it to PyPI (trusted
-publishing, no tokens) and deploys the docs.
+and the changelog. Merging that PR tags the release; `.github/workflows/release.yml`
+then builds the distributions from the tag (with no publishing rights), records SLSA build
+provenance for them, publishes those exact files to PyPI by trusted publishing (no tokens,
+plus PEP 740 attestations), attaches them to the GitHub release and deploys the docs.
+`actionlint` (a prek hook) checks the workflows.
