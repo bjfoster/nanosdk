@@ -34,7 +34,7 @@ pip install nanosdk                # or: uv add nanosdk
 pip install "nanosdk[polars]"      # + DataFrame helpers (also: pandas)
 ```
 
-Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
+Python 3.12+, httpx ≥ 0.27, pydantic ≥ 2.6.
 
 ## What's included
 

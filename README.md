@@ -42,7 +42,7 @@ pip install "nanosdk[codegen]"       # + `nanosdk generate` (OpenAPI -> typed cl
 pip install "nanosdk[polars]"        # + DataFrame helpers (also: pandas)
 ```
 
-Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
+Python 3.12+, httpx ≥ 0.27, pydantic ≥ 2.6.
 
 <!-- --8<-- [start:guide] -->
 ## Declaring routes

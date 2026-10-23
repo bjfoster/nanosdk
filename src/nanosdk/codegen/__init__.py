@@ -36,7 +36,7 @@ DATAMODEL_CODEGEN_ARGS = [
     "--openapi-scopes", "schemas",
     "--output-model-type", "pydantic_v2.BaseModel",
     "--output-datetime-class", "datetime",
-    "--target-python-version", "3.13",
+    "--target-python-version", "3.12",
     "--use-annotated",
     "--use-standard-collections",
     "--use-union-operator",

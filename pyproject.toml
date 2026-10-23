@@ -7,7 +7,7 @@ name = "nanosdk"
 version = "0.1.0"
 description = "Typed API clients on httpx + pydantic: declare routes, or generate them from OpenAPI."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Benjamin Foster", email = "bjfoster.wrk@gmail.com" }]
@@ -23,8 +23,10 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Software Development :: Code Generators",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -92,7 +94,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py312"
 src = ["src", "tests"]
 extend-exclude = ["*.md"]
 
@@ -132,12 +134,12 @@ known-first-party = ["nanosdk"]
 include = ["src", "tests/typecheck.py", "examples"]
 exclude = ["examples/petstore-workspace", "examples/realtime-trains"]  # own envs and checks
 typeCheckingMode = "strict"
-pythonVersion = "3.13"
+pythonVersion = "3.12"
 enableTypeIgnoreComments = false
 reportUnnecessaryTypeIgnoreComment = "error"
 
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.12"
 
 [tool.ty.src]
 include = ["src", "tests/typecheck.py", "examples"]
@@ -148,6 +150,6 @@ unused-ignore-comment = "error"
 
 [tool.mypy]
 strict = true
-python_version = "3.13"
+python_version = "3.12"
 files = ["src", "tests/typecheck.py", "examples"]
 exclude = ["^examples/(petstore-workspace|realtime-trains)/"]

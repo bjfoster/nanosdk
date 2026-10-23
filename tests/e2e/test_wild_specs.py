@@ -211,7 +211,7 @@ def test_generated_client_passes_strict_pyright(
     )
     config = {
         "typeCheckingMode": "strict",
-        "pythonVersion": "3.13",
+        "pythonVersion": "3.12",
         "reportUnnecessaryTypeIgnoreComment": "error",
         "include": [f"{package}/client.py", usage.name],
     }
