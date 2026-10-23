@@ -14,3 +14,4 @@ modules.
 | [Auth](auth.md) | `Bearer`, `ApiKey`, `OAuth2ClientCredentials` |
 | [DataFrames](frames.md) | `frames.polars`, `frames.pandas`, `frames.records` |
 | [Errors](errors.md) | `NanoAPIError` and its subclasses |
+| [Code generation](codegen.md) | `nanoapi generate` / `nanoapi.codegen`: typed clients from OpenAPI |

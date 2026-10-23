@@ -1,0 +1,103 @@
+# Each schema here reproduces a generator bug found on a real-world spec (see
+# tests/e2e). OpenAPI 3.0, so `nullable` is in play.
+openapi: 3.0.3
+info: {title: Regressions, version: "1"}
+servers: [{url: "https://reg.test"}]
+paths:
+  /features:
+    get:
+      operationId: listFeatures # NWS: GeoJSON `properties` property crashed datamodel-codegen
+      responses:
+        "200":
+          description: ok
+          content:
+            application/geo+json:
+              schema: {$ref: "#/components/schemas/FeatureCollection"}
+  /intervals/{interval}:
+    get:
+      operationId: getInterval
+      parameters:
+        - {name: interval, in: path, required: true, schema: {$ref: "#/components/schemas/Interval"}}
+        - {name: date, in: query, schema: {type: string, format: date}} # NWS: shadowed `date`
+        - {name: id, in: query, schema: {type: integer}} # PokeAPI: `id` must stay `id`
+      responses:
+        "200": # NWS: no schema
+          description: ok
+          content:
+            application/json:
+              schema: {}
+  /owners/{ownerID}:
+    get:
+      operationId: getOwnerIDs # APIs.guru: listAPIs -> list_ap_is
+      parameters:
+        - {name: ownerID, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Owner"}
+  /repos/{name}:
+    get:
+      operationId: getRepo
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Repo"}
+components:
+  schemas:
+    Interval: # NWS: union of strings -> `str`, not a missing class
+      oneOf:
+        - {type: string, pattern: "^P"}
+        - {type: string, pattern: "/"}
+    Zone: {type: object, properties: {name: {type: string}}}
+    Feature: {type: object, properties: {id: {type: string}}}
+    FeatureCollection:
+      allOf:
+        - {type: object, properties: {type: {type: string}}}
+        - type: object
+          properties:
+            features:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Feature"
+                  - type: object
+                    properties:
+                      properties: {$ref: "#/components/schemas/Zone"}
+    public-user: # GitHub: discriminator mapping must follow the component rename
+      type: object
+      required: [kind, login]
+      properties:
+        kind: {type: string}
+        login: {type: string}
+        email: {type: string, format: email, nullable: true} # GitHub: EmailStr
+    private-user:
+      type: object
+      required: [kind, login, plan]
+      properties:
+        kind: {type: string}
+        login: {type: string}
+        plan: {type: string}
+    Owner:
+      oneOf:
+        - $ref: "#/components/schemas/private-user"
+        - $ref: "#/components/schemas/public-user"
+      discriminator:
+        propertyName: kind
+        mapping:
+          public: "#/components/schemas/public-user"
+          private: "#/components/schemas/private-user"
+    Repo:
+      type: object
+      required: [name, language, homepage, topics, owner]
+      properties:
+        name: {type: string}
+        language: {type: string, nullable: true} # GitHub: required + nullable
+        homepage: {type: string, format: uri, nullable: true}
+        topics: {type: array, minItems: 0, items: {type: string, minLength: 0}} # no-ops
+        owner: {allOf: [{$ref: "#/components/schemas/public-user"}], nullable: true}

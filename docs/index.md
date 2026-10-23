@@ -46,6 +46,7 @@ Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
 | **Retries** | [`Retry`][nanoapi.Retry] with backoff, jitter and `Retry-After` |
 | **Auth** | [`Bearer`][nanoapi.auth.Bearer], [`ApiKey`][nanoapi.auth.ApiKey], [`OAuth2ClientCredentials`][nanoapi.auth.OAuth2ClientCredentials], or any `httpx.Auth` |
 | **Transforms** | [`Route.map`][nanoapi.Route.map], and [DataFrames](reference/frames.md) via polars or pandas |
+| **Code generation** | [`nanoapi generate`](reference/codegen.md) writes a typed client package from an OpenAPI spec |
 | **Hooks** | [`_prepare_request`][nanoapi.Client._prepare_request], [`_process_response`][nanoapi.Client._process_response], [`_raise_for_status`][nanoapi.Client._raise_for_status], [`_retry_policy`][nanoapi.Client._retry_policy]; a client instance exposes only your routes, `with_options` and `close` |
 
 Read the [guide](guide.md) for a tour, or go straight to the [API reference](reference/index.md).

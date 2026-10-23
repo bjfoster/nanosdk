@@ -1,8 +1,6 @@
-"""Offline tests for the SDK, plus a guard that models.py matches openapi.json."""
+"""Offline tests for the SDK, plus a guard that _generated/ matches openapi.json."""
 
 import json
-import shutil
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -10,6 +8,7 @@ import httpx
 import pytest
 
 import nanoapi
+from nanoapi.codegen.cli import main
 from petstore import ApiResponse, AsyncPetstore, Pet, PetStatus, Petstore
 
 PACKAGE_DIR = Path(__file__).parent.parent
@@ -89,18 +88,9 @@ async def test_async_client() -> None:
     assert pet == Pet(id=1, name="rex", photo_urls=["a.jpg"], status=PetStatus.AVAILABLE)
 
 
-def test_generated_models_are_up_to_date() -> None:
-    """Fails if someone edits models.py by hand or updates openapi.json without
-    regenerating. Fix: uv run --directory packages/petstore datamodel-codegen"""
-    codegen = shutil.which("datamodel-codegen")
-    if codegen is None:
-        pytest.skip("datamodel-codegen not installed (uv sync --group dev)")
-    committed = PACKAGE_DIR / "src" / "petstore" / "models.py"
-    # Generate next to the real file: the ruff formatter codegen runs picks up the
-    # ruff config for the output path, so a temp dir elsewhere would format differently.
-    fresh = committed.with_name("_models_check.py")
-    try:
-        subprocess.run([codegen, "--output", str(fresh)], cwd=PACKAGE_DIR, check=True)
-        assert fresh.read_text() == committed.read_text()
-    finally:
-        fresh.unlink(missing_ok=True)
+def test_generated_code_is_up_to_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fails if `_generated/` was edited by hand, or `openapi.json` or the codegen
+    settings changed without regenerating. Fix: uv run --directory packages/petstore
+    nanoapi generate"""
+    monkeypatch.chdir(PACKAGE_DIR)
+    main(["generate", "--check"])

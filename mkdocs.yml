@@ -39,6 +39,7 @@ nav:
       - Auth: reference/auth.md
       - DataFrames: reference/frames.md
       - Errors: reference/errors.md
+      - Code generation: reference/codegen.md
 
 plugins:
   - search

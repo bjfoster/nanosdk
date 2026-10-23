@@ -15,13 +15,13 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from .models import (
+from ._generated.models import (
     IndividualTemporalData,
     LocationDisplayAs,
     LocationLineUpObject,
     LocationPair,
+    LocationResponse,
     PlannedActualData,
-    RttLocationGetResponse,
 )
 
 __all__ = ["BoardRow", "departure_board"]
@@ -54,7 +54,7 @@ class BoardRow(BaseModel, frozen=True):
     status: str
 
 
-def departure_board(lineup: RttLocationGetResponse) -> list[BoardRow]:
+def departure_board(lineup: LocationResponse) -> list[BoardRow]:
     """Flatten a location line-up into board rows, in the API's order.
 
     Use it directly, or through the `board` route, which is `location.map(departure_board)`.

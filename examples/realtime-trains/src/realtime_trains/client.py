@@ -1,9 +1,11 @@
-"""Request models, routes and the sync/async clients for the Realtime Trains API.
+"""The hand-written half of the client, on top of the generated `_generated` package.
 
-The response models are generated from the OpenAPI spec (`models.py`); this module adds
-what codegen can't: the query parameters of each operation (with the spec's documented
-constraints as validation), friendly names for the per-endpoint response models, and
-the API's conventions for auth, versions, rate limits, empty results and errors.
+`nanoapi generate` (see pyproject.toml) produces the models, the routes for allocations
+by service, reference data and account info, and the `RealtimeTrainsBase` clients. This
+module adds what the spec can't express: the location and service queries, whose
+documented rules (exclusive parameters, window limits) need validators; friendly names
+for the response models; and the API's conventions for auth, versions, rate limits,
+empty results and errors.
 """
 
 import logging
@@ -19,7 +21,12 @@ from pydantic.alias_generators import to_camel
 
 import nanoapi
 
-from . import models
+from ._generated import models
+from ._generated.client import (
+    AsyncRealtimeTrainsBase,
+    NrAllocationsByServiceParams,
+    RealtimeTrainsBase,
+)
 from .auth import RefreshTokenAuth
 from .board import departure_board
 from .errors import BY_STATUS
@@ -49,15 +56,16 @@ __all__ = [
 DEFAULT_BASE_URL = "https://data.rtt.io"
 
 # Friendlier names for the response models codegen named after their paths.
-LocationLineUp = models.RttLocationGetResponse
-ServiceDetail = models.RttServiceGetResponse
-NetworkRailLocationLineUp = models.GbNrLocationGetResponse
-NetworkRailServiceDetail = models.GbNrServiceGetResponse
-AllocationsByService = models.GbNrAllocationsByServiceGetResponse1  # /allocations/by-service
-AllocationsByClass = models.GbNrAllocationsByClassGetResponse
-Locations = models.DataLocationsUngroupedGetResponse
-Stops = models.DataStopsGetResponse
-ApiInfo = models.ApiInfoGetResponse
+LocationLineUp = models.LocationResponse
+ServiceDetail = models.ServiceResponse
+NetworkRailLocationLineUp = models.NrLocationResponse
+NetworkRailServiceDetail = models.NrServiceResponse
+AllocationsByService = models.NrAllocationsByServiceResponse  # /allocations/by-service
+AllocationsByClass = models.NrAllocationsByClassResponse
+Locations = models.LocationsResponse
+Stops = models.StopsResponse
+ApiInfo = models.InfoResponse
+AllocationsByServiceQuery = NrAllocationsByServiceParams  # generated
 
 MAX_WINDOW = timedelta(hours=23, minutes=59)
 
@@ -163,18 +171,6 @@ class ServiceQuery(NetworkRailServiceQuery):
     namespace: str | None = None
 
 
-class AllocationsByServiceQuery(_Params):
-    """Rolling-stock allocations for a train operator's services on a date.
-
-    Args:
-        departure_date: Departure date from origin.
-        toc: Train operator code, such as `"SW"`.
-    """
-
-    departure_date: date
-    toc: str
-
-
 class AllocationsByClassQuery(_Params):
     """Rolling-stock allocations for a class of vehicle on a date.
 
@@ -194,7 +190,7 @@ _EMPTY_ON_204 = {"empty_on_204": True}
 
 
 class GenericRoutes(nanoapi.Routes, prefix="/rtt"):
-    """Namespace-independent endpoints."""
+    """Namespace-independent queries, with hand-written parameter rules."""
 
     location = nanoapi.get(
         "/location", request=LocationQuery, response=LocationLineUp, meta=_EMPTY_ON_204
@@ -203,8 +199,8 @@ class GenericRoutes(nanoapi.Routes, prefix="/rtt"):
     service = nanoapi.get("/service", request=ServiceQuery, response=ServiceDetail)
 
 
-class NetworkRailRoutes(nanoapi.Routes, prefix="/gb-nr"):
-    """Network Rail (`gb-nr`) endpoints, with headcodes, STP data and allocations."""
+class NetworkRailQueries(nanoapi.Routes, prefix="/gb-nr"):
+    """Network Rail (`gb-nr`) queries with hand-written parameter rules."""
 
     nr_location = nanoapi.get(
         "/location",
@@ -215,25 +211,13 @@ class NetworkRailRoutes(nanoapi.Routes, prefix="/gb-nr"):
     nr_service = nanoapi.get(
         "/service", request=NetworkRailServiceQuery, response=NetworkRailServiceDetail
     )
-    nr_allocations_by_service = nanoapi.get(
-        "/allocations/by-service", request=AllocationsByServiceQuery, response=AllocationsByService
-    )
     nr_allocations_by_class = nanoapi.get(
         "/allocations/by-class", request=AllocationsByClassQuery, response=AllocationsByClass
     )
 
 
-class ReferenceDataRoutes(nanoapi.Routes, prefix="/data"):
-    """Reference data: the locations and stops the API knows about."""
-
-    locations = nanoapi.get("/locations_ungrouped", response=Locations)
-    stops = nanoapi.get("/stops", response=Stops)
-
-
-class AccountRoutes(nanoapi.Routes, prefix="/api"):
-    """Your API version, entitlements and restrictions."""
-
-    info = nanoapi.get("/info", response=ApiInfo)
+# Everything else (allocations by service, reference data, account info) is generated:
+# see RealtimeTrainsBase in _generated/client.py.
 
 
 # --- client behaviour shared by the sync and async clients ------------------------------
@@ -312,9 +296,7 @@ def _check_status(response: httpx.Response) -> None:
 # --- clients ----------------------------------------------------------------------------
 
 
-class RealtimeTrains(
-    GenericRoutes, NetworkRailRoutes, ReferenceDataRoutes, AccountRoutes, nanoapi.Client
-):
+class RealtimeTrains(GenericRoutes, NetworkRailQueries, RealtimeTrainsBase):
     """Synchronous Realtime Trains client.
 
     Example:
@@ -386,9 +368,7 @@ class RealtimeTrains(
         _check_status(response)
 
 
-class AsyncRealtimeTrains(
-    GenericRoutes, NetworkRailRoutes, ReferenceDataRoutes, AccountRoutes, nanoapi.AsyncClient
-):
+class AsyncRealtimeTrains(GenericRoutes, NetworkRailQueries, AsyncRealtimeTrainsBase):
     """Asynchronous Realtime Trains client; the async twin of `RealtimeTrains`.
 
     Args:

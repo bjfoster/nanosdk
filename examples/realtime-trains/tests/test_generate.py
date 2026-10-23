@@ -1,15 +1,14 @@
-"""The spec normalizer, and guards that generated files match the vendored spec."""
+"""The spec normalizer, and a guard that _generated/ matches the vendored spec."""
 
 import importlib.util
-import json
-import shutil
-import subprocess
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 import pytest
 import yaml
+
+from nanoapi.codegen import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -51,22 +50,8 @@ def test_date_format_contradicted_by_its_example_is_dropped() -> None:
     assert normalize("type: string\nformat: date\nexample: '2025-10-26'")["format"] == "date"
 
 
-def test_normalized_spec_is_up_to_date() -> None:
-    """Fails if spec/rtt-api.yml changed without `uv run scripts/generate.py`."""
-    upstream = yaml.safe_load((ROOT / "spec" / "rtt-api.yml").read_text())
-    expected = json.loads(json.dumps(generate.normalize(upstream), default=str))
-    assert json.loads((ROOT / "spec" / "rtt-api.normalized.json").read_text()) == expected
-
-
-def test_models_are_up_to_date() -> None:
-    """Fails if models.py was edited by hand or not regenerated after a spec change."""
-    codegen = shutil.which("datamodel-codegen")
-    if codegen is None:
-        pytest.skip("datamodel-codegen not installed (uv sync)")
-    committed = ROOT / "src" / "realtime_trains" / "models.py"
-    fresh = committed.with_name("_models_check.py")  # same dir: same ruff config for formatting
-    try:
-        subprocess.run([codegen, "--output", str(fresh)], cwd=ROOT, check=True)
-        assert fresh.read_text() == committed.read_text()
-    finally:
-        fresh.unlink(missing_ok=True)
+def test_generated_package_is_up_to_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fails if _generated/ was edited by hand, or the spec, normalizer or codegen settings
+    changed without `uv run scripts/generate.py`."""
+    monkeypatch.chdir(ROOT)
+    cli.main(["generate", "--check"])

@@ -25,6 +25,10 @@ classifiers = [
 [project.optional-dependencies]
 polars = ["polars>=1"]
 pandas = ["pandas>=2"]
+codegen = ["datamodel-code-generator[ruff]>=0.86", "pyyaml>=6"]
+
+[project.scripts]
+nanoapi = "nanoapi.codegen.cli:main"
 
 [dependency-groups]
 dev = [
@@ -37,6 +41,10 @@ dev = [
     "polars>=2.0.0",
     "pandas>=3.1.0",
     "pandas-stubs>=3.0.5.260914",
+    "datamodel-code-generator[ruff]>=0.86",
+    "pyyaml>=6.0.3",
+    "types-pyyaml>=6.0.12.20260906",
+    "openapi-spec-validator>=0.9.0",
 ]
 docs = [
     "mkdocs>=1.6.1,<2",  # MkDocs 2 drops the plugin system mkdocstrings needs
@@ -50,6 +58,12 @@ packages = ["src/nanoapi"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "examples/test_my_sdk.py"]
+# Real-world specs, live APIs: opt in with `uv run pytest -m e2e` (see tests/e2e).
+addopts = ["-m", "not e2e"]
+markers = [
+    "e2e: generates clients from real-world OpenAPI specs (slow; downloads specs)",
+    "network: calls live third-party APIs",
+]
 
 [tool.ruff]
 line-length = 100

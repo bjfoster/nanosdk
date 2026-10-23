@@ -22,7 +22,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
-from . import models as m
+from ._generated import models as m
 
 __all__ = ["STATIONS", "FakeRealtimeTrains"]
 
@@ -143,21 +143,17 @@ class FakeRealtimeTrains:
             case "/rtt/service" | "/gb-nr/service":
                 return self._service(q, network_rail=path.startswith("/gb-nr"))
             case "/data/stops":
-                return _model(m.DataStopsGetResponse(stops=[_stop(c) for c in STATIONS]))
+                return _model(m.StopsResponse(stops=[_stop(c) for c in STATIONS]))
             case "/data/locations_ungrouped":
-                return _model(
-                    m.DataLocationsUngroupedGetResponse(locations=[_place(c) for c in STATIONS])
-                )
+                return _model(m.LocationsResponse(locations=[_place(c) for c in STATIONS]))
             case "/gb-nr/allocations/by-service" | "/gb-nr/allocations/by-class":
                 return _json(403, {"error": "requires allowFullAllocationListing"})
             case "/api/info":
-                credentials = m.ApiInfoGetResponseCredentials(
+                credentials = m.InfoResponseCredentials(
                     entitlements=["allowDetailed"], history_restriction=True,
                     history_restrict_to_days=14, namespace_restriction=False,
                 )  # fmt: skip
-                return _model(
-                    m.ApiInfoGetResponse(api_version="2026-01-18", credentials=credentials)
-                )
+                return _model(m.InfoResponse(api_version="2026-01-18", credentials=credentials))
             case _:
                 return _json(404, {"error": f"no route {path}"})
 
@@ -167,7 +163,7 @@ class FakeRealtimeTrains:
         token = f"issued-{len(self.issued) + 1}"
         self.issued.append(token)
         return _model(
-            m.ApiGetAccessTokenGetResponse(
+            m.AccessTokenResponse(
                 token=token,
                 entitlements=["allowDetailed"],
                 # Tokens expire by the wall clock, even when the timetable's `now` is fixed.
@@ -247,7 +243,7 @@ class FakeRealtimeTrains:
             }
             for i, (code, when) in enumerate(train.times(self.now))
         ]
-        body_type = m.GbNrServiceGetResponse if network_rail else m.RttServiceGetResponse
+        body_type = m.NrServiceResponse if network_rail else m.ServiceResponse
         body = body_type.model_validate({
             "query": {"unique_identity": wanted},
             "service": {
@@ -307,15 +303,15 @@ def _place_model(code: str) -> m.GeographicLocation:
     return m.GeographicLocation(description=name, short_codes=[code], long_codes=[tiploc])
 
 
-def _stop(code: str) -> m.DataStopsGetResponseStop:
-    return m.DataStopsGetResponseStop(
+def _stop(code: str) -> m.StopsResponseStop:
+    return m.StopsResponseStop(
         description=STATIONS[code][0], short_code=code, unique_identity=f"gb-nr:{code}"
     )
 
 
-def _place(code: str) -> m.DataLocationsUngroupedGetResponseLocation:
+def _place(code: str) -> m.LocationsResponseLocation:
     name, tiploc = STATIONS[code]
-    return m.DataLocationsUngroupedGetResponseLocation(
+    return m.LocationsResponseLocation(
         description=name, short_code=code, long_code=tiploc, unique_identity=f"gb-nr:{tiploc}"
     )
 

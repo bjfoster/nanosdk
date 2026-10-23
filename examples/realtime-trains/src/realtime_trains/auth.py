@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 import nanoapi
 
-from .models import ApiGetAccessTokenGetResponse as AccessToken
+from ._generated.models import AccessTokenResponse as AccessToken
 
 __all__ = ["AccessToken", "RefreshTokenAuth"]
 

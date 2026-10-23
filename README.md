@@ -243,6 +243,54 @@ is free-form data on any route for your hooks to read. `Retry` is a frozen datac
 `respect_retry_after`); subclass it and override `should_retry` / `delay` for more.
 POST isn't retried unless you add it to `methods`.
 
+## Generating a client from OpenAPI
+
+`nanoapi generate` turns an OpenAPI 3.x document into a typed client package: pydantic
+models (via datamodel-codegen), a parameter model per operation, a `Routes` group per
+tag, and sync and async clients. Everything stays typed, because it's ordinary
+generated source that type checkers read:
+
+```bash
+pip install "nanoapi[codegen]"
+nanoapi generate openapi.yml -o src/my_sdk/_generated --name MyApiBase
+nanoapi generate openapi.yml -o src/my_sdk/_generated --name MyApiBase --check   # CI
+```
+
+```python
+from my_sdk._generated import MyApiBase
+
+api = MyApiBase()                          # base_url defaults to the spec's server
+pet = api.get_pet_by_id(pet_id=1)          # -> Pet; arguments typed from the spec
+```
+
+- Parameters keep their wire names (`pet_id` is sent as `petId`), inline enums become
+  `Literal[...]`, and `pattern` / `minimum` / ... are validated before sending.
+- A JSON body model with no other parameters *is* the request: `add_pet(name=..., ...)`.
+- Inline request/response schemas get stable names (`GetPetByIdResponse`), and route
+  names come from `operationId` (or method + path), with `rename` to override them.
+- Real-world spec quirks are handled: OpenAPI 3.0 `nullable` on required fields,
+  `email`/`uri` formats as plain `str`, discriminated unions, GeoJSON schemas. For APIs
+  whose responses break their own spec, `lenient` makes every model field optional.
+- Treat the package as build output. Customise by subclassing the generated clients:
+  add auth, hooks and conventions there, and `skip` operations whose parameters you'd
+  rather write by hand (their models are still generated).
+
+Settings can live in `pyproject.toml` (then it's just `nanoapi generate`):
+
+```toml
+[tool.nanoapi.codegen]
+spec = "openapi.yml"
+output = "src/my_sdk/_generated"
+name = "MyApiBase"
+transform = "scripts/fix_spec.py:fix"      # patch a broken spec in memory first
+skip = ["updatePetWithForm"]
+rename = { getPetById = "get_pet" }
+lenient = false                            # true: every model field optional
+```
+
+Both `examples/petstore-workspace` and `examples/realtime-trains` in this repo are built
+this way.
+
 ## Logging
 
 nanoapi logs to the standard `logging` module under the `nanoapi` logger and prints
@@ -293,6 +341,8 @@ uv run pytest            # runtime tests (httpx.MockTransport, no network)
 uv run pyright           # strict, incl. tests/typecheck.py assert_type + must-fail cases
 uv run mypy              # strict
 uv run ty check          # Astral's ty (3 of the 5 must-fail cases; see typecheck.py)
+uv run pytest -m e2e     # opt-in: generate clients for 5 real-world specs (GitHub, PokéAPI,
+                         # NWS, Open-Meteo, APIs.guru), strict-pyright them, call the live APIs
 ```
 
 API docs are generated from the docstrings with MkDocs + mkdocstrings (ruff's `D` rules,

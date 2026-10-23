@@ -3,7 +3,7 @@ members = ["packages/*"]
 
 [dependency-groups]
 dev = [
-    "datamodel-code-generator[ruff]>=0.86.0",
+    "nanoapi[codegen]",
     "mypy>=2.4.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
@@ -14,8 +14,8 @@ dev = [
 
 [tool.ruff]
 extend = "../../pyproject.toml"  # same style as nanoapi itself
-# Generated code is formatted by datamodel-codegen itself; keep ruff from re-styling it.
-extend-exclude = ["packages/petstore/src/petstore/models.py"]
+# Generated code (`nanoapi generate`) is formatted by the generator; don't lint or restyle it.
+extend-exclude = ["packages/petstore/src/petstore/_generated"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["petstore", "petstore_demo"]
@@ -24,8 +24,12 @@ known-first-party = ["petstore", "petstore_demo"]
 asyncio_mode = "auto"
 testpaths = ["packages"]
 
+[tool.uv.sources]
+nanoapi = { path = "../..", editable = true }
+
 [tool.pyright]
 include = ["packages"]
+exclude = ["packages/petstore/src/petstore/_generated/models.py"]  # datamodel-codegen output
 typeCheckingMode = "strict"
 pythonVersion = "3.13"
 venvPath = "."

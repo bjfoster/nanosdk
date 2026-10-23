@@ -11,8 +11,8 @@ from datetime import datetime
 
 import nanoapi
 
+from ._generated.models import IndividualTemporalData
 from .client import RealtimeTrains
-from .models import IndividualTemporalData
 from .testing import FakeRealtimeTrains
 
 __all__ = ["main"]

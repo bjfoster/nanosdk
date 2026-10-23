@@ -42,8 +42,13 @@ def main() -> None:
         sold = api.update_pet_form(pet_id=pet_id, name=pet.name, status=PetStatus.SOLD)
         print(f"updated  status -> {sold.status}")
 
-        available = api.find_by_status(status=PetStatus.AVAILABLE)
-        print(f"{len(available)} pets currently available")
+        try:
+            available = api.find_by_status(status="available")
+            print(f"{len(available)} pets currently available")
+        except nanoapi.ResponseValidationError as exc:
+            # The demo server is shared: other people's pets may break the spec (say, no
+            # photoUrls, which the spec requires). The models enforce the spec.
+            print(f"available pets: {exc.error.error_count()} records break the spec")
 
         try:
             counts = api.inventory()  # needs the api_key header, sent by ApiKey auth
@@ -70,7 +75,11 @@ def main() -> None:
 async def fetch_some() -> None:
     """The same SDK, async: look up a handful of pets concurrently."""
     async with AsyncPetstore() as api:
-        pets = await api.find_by_status(status=PetStatus.AVAILABLE)
+        try:
+            pets = await api.find_by_status(status="sold")
+        except nanoapi.ResponseValidationError:
+            print("async    skipped: the shared server's data breaks the spec right now")
+            return
         ids = [pet.id for pet in pets[:5] if pet.id is not None]
         details: list[Pet] = await asyncio.gather(*(api.get_pet(pet_id=i) for i in ids))
         print("async   ", ", ".join(pet.name for pet in details))

@@ -1,0 +1,165 @@
+openapi: 3.1.0
+info:
+  title: Kitchen Sink API
+  version: "2.0"
+servers:
+  - url: https://api.kitchen.test/v2
+tags:
+  - name: items
+    description: Things in the kitchen.
+  - name: misc
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items.
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+        - {name: sort-order, in: query, schema: {type: string, enum: [asc, desc]}}
+        - {name: tag, in: query, schema: {type: array, items: {type: string}}}
+        - {name: X-Request-Id, in: header, schema: {type: string}}
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Item"}}
+        "400":
+          description: bad request
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+    post:
+      operationId: createItem
+      tags: [items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewItem"}
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Item"}
+        default:
+          description: error
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /items/{item-id}:
+    parameters:
+      - {name: item-id, in: path, required: true, schema: {type: integer, minimum: 1}}
+    get:
+      operationId: getItem
+      tags: [items]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Item"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      operationId: replaceItem
+      tags: [items]
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewItem"}
+      responses:
+        "204": {description: replaced}
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      deprecated: true
+      responses:
+        "204": {description: gone}
+  /items/{item-id}/stats:
+    get:
+      tags: [items]
+      parameters:
+        - {name: item-id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  views: {type: integer}
+                  rating: {type: [number, "null"]}
+  /upload:
+    post:
+      operationId: upload
+      tags: [misc]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                caption: {type: string}
+                file: {type: string, format: binary}
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema: {type: string}
+  /search:
+    get:
+      operationId: search
+      tags: [misc]
+      parameters:
+        - {name: class, in: query, required: true, schema: {type: string, pattern: "^[A-Z]+$"}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: {type: integer}}
+  /close:
+    post:
+      operationId: close
+      tags: [misc]
+      responses:
+        "204": {description: closed}
+components:
+  parameters:
+    PageSize: {name: pageSize, in: query, schema: {type: integer, maximum: 100}}
+  responses:
+    NotFound:
+      description: missing
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+  schemas:
+    Item:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/item-kind"}
+        createdAt: {type: string, format: date-time}
+    NewItem:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/item-kind"}
+    item-kind:
+      type: string
+      enum: [tool, food]
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: {type: string}
+        code: {type: integer}

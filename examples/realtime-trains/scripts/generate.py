@@ -1,30 +1,26 @@
-"""Regenerate ``src/realtime_trains/models.py`` from the Realtime Trains OpenAPI spec.
+"""Regenerate ``src/realtime_trains/_generated`` from the Realtime Trains OpenAPI spec.
 
-    uv run scripts/generate.py           # normalize spec/rtt-api.yml, then run codegen
+    uv run scripts/generate.py           # nanoapi generate, with the settings in pyproject
     uv run scripts/generate.py --fetch   # download the latest upstream spec first
+    uv run scripts/generate.py --check   # CI: fail if _generated/ is out of date
 
 ``spec/rtt-api.yml`` is the upstream spec, byte for byte. It has a few constructs that
-aren't valid JSON Schema, so ``normalize`` writes a corrected copy
-(``spec/rtt-api.normalized.json``) and datamodel-codegen reads that, using the settings
-in ``[tool.datamodel-codegen]`` in pyproject.toml.
+aren't valid JSON Schema; ``normalize`` (below) corrects them in memory, as the
+generator's ``transform``.
 """
 
 import argparse
-import json
-import shutil
-import subprocess
-import sys
+import os
 import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
 
-import yaml
+from nanoapi.codegen import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM_URL = "https://realtimetrains.github.io/api-specification/specification/main.yml"
 UPSTREAM = ROOT / "spec" / "rtt-api.yml"
-NORMALIZED = ROOT / "spec" / "rtt-api.normalized.json"
 
 
 def normalize(node: Any) -> Any:
@@ -76,31 +72,20 @@ def _parses_as(fmt: str, schema: dict[str, Any]) -> bool:
     return True
 
 
-def write_normalized() -> None:
-    """Normalize the vendored upstream spec into ``spec/rtt-api.normalized.json``."""
-    spec = yaml.safe_load(UPSTREAM.read_text())
-    NORMALIZED.write_text(json.dumps(normalize(spec), indent=2, default=str) + "\n")
-
-
 def main() -> None:
-    """Fetch (optionally), normalize and generate."""
-    parser = argparse.ArgumentParser(description="Regenerate the models from the spec.")
+    """Optionally fetch the upstream spec, then run `nanoapi generate`."""
+    parser = argparse.ArgumentParser(description="Regenerate the client from the spec.")
     parser.add_argument("--fetch", action="store_true", help="download the upstream spec first")
+    parser.add_argument("--check", action="store_true", help="fail if the output is stale")
     args = parser.parse_args()
 
     if args.fetch:
         with urllib.request.urlopen(UPSTREAM_URL) as response:
             UPSTREAM.write_bytes(response.read())
         print(f"fetched {UPSTREAM_URL}")
-
-    write_normalized()
-    print(f"wrote {NORMALIZED.relative_to(ROOT)}")
-
-    codegen = shutil.which("datamodel-codegen")
-    if codegen is None:
-        sys.exit("datamodel-codegen not found: run `uv sync` first")
-    subprocess.run([codegen], cwd=ROOT, check=True)  # settings: [tool.datamodel-codegen]
-    print("wrote src/realtime_trains/models.py")
+    # Settings, including `transform = "scripts/generate.py:normalize"`, are in pyproject.toml.
+    os.chdir(ROOT)
+    cli.main(["generate", *(["--check"] if args.check else [])])
 
 
 if __name__ == "__main__":
