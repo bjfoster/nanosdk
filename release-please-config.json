@@ -24,6 +24,16 @@
           "type": "toml",
           "path": "uv.lock",
           "jsonpath": "$.package[?(@.name.value=='nanosdk')].version"
+        },
+        {
+          "type": "toml",
+          "path": "examples/petstore-workspace/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='nanosdk')].version"
+        },
+        {
+          "type": "toml",
+          "path": "examples/realtime-trains/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='nanosdk')].version"
         }
       ]
     }
