@@ -43,6 +43,8 @@ nav:
       - DataFrames: reference/frames.md
       - Errors: reference/errors.md
       - Code generation: reference/codegen.md
+  - Versioning and stability: stability.md
+  - Changelog: changelog.md
 
 plugins:
   - search
@@ -90,3 +92,4 @@ markdown_extensions:
 watch:
   - src
   - README.md
+  - CHANGELOG.md

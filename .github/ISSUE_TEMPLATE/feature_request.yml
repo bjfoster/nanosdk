@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest something nanosdk should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The API or use case, and where nanosdk gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to write?
+      description: The code you'd like to write as a user, even if it's a sketch.
+      render: python
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you've tried
+      description: For example a client hook, `Route.map` or a custom pagination strategy.
