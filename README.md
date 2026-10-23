@@ -339,6 +339,17 @@ Override `_raise_for_status(self, response)` on your client to map errors your o
 
 <!-- --8<-- [end:guide] -->
 
+## Verifying a release
+
+Every release from 0.2.0 on is built and published by GitHub Actions with provenance
+anyone can check: SLSA build provenance on GitHub, and PEP 740 attestations on PyPI
+(shown as "Provenance" on the PyPI file pages).
+
+```bash
+pip download nanosdk==0.2.0 --no-deps -d dist
+gh attestation verify dist/nanosdk-0.2.0-py3-none-any.whl --repo bjfoster/nanosdk
+```
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and how releases work.
