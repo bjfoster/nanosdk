@@ -1,5 +1,10 @@
 # nanosdk
 
+[![CI](https://github.com/bjfoster/nanosdk/actions/workflows/ci.yml/badge.svg)](https://github.com/bjfoster/nanosdk/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/nanosdk)](https://pypi.org/project/nanosdk/)
+[![Python](https://img.shields.io/pypi/pyversions/nanosdk)](https://pypi.org/project/nanosdk/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A tiny, fully typed HTTP client core built on **httpx** + **pydantic**.
 You declare routes and models; nanosdk gives you a sync *and* async client whose
 methods are typed end to end — arguments come from the request model's
@@ -23,16 +28,18 @@ with GitHub("https://api.github.com") as gh:
     user = gh.get_user(username="octocat")   # -> User   (username: str is checked)
 ```
 
-No codegen, no metaclass magic: a `Route` is a generic descriptor, and the
+No runtime codegen, no metaclass magic: a `Route` is a generic descriptor, and the
 request model class is captured as a `Callable[P, Req]`, so `P` (its `__init__`
-signature) becomes the signature of the bound method. Pyright and mypy (strict)
-both see it.
+signature) becomes the signature of the bound method. pyright, mypy and ty (strict)
+all see it. Have an OpenAPI spec? [`nanosdk generate`](#generating-a-client-from-openapi)
+writes the routes and models for you.
 
 ## Install
 
 ```bash
-uv sync                     # from this folder; installs the dev group (pytest, pyright, mypy, ty, ruff)
-pip install -e ".[polars]"  # or without uv; extras: polars, pandas
+pip install nanosdk                  # or: uv add nanosdk
+pip install "nanosdk[codegen]"       # + `nanosdk generate` (OpenAPI -> typed client)
+pip install "nanosdk[polars]"        # + DataFrame helpers (also: pandas)
 ```
 
 Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
@@ -334,24 +341,7 @@ Override `_raise_for_status(self, response)` on your client to map errors your o
 
 ## Development
 
-```bash
-uv run ruff check .      # lint
-uv run ruff format .     # format
-uv run pytest            # runtime tests (httpx.MockTransport, no network)
-uv run pyright           # strict, incl. tests/typecheck.py assert_type + must-fail cases
-uv run mypy              # strict
-uv run ty check          # Astral's ty (3 of the 5 must-fail cases; see typecheck.py)
-uv run pytest -m e2e     # opt-in: generate clients for 5 real-world specs (GitHub, PokéAPI,
-                         # NWS, Open-Meteo, APIs.guru), strict-pyright them, call the live APIs
-```
-
-API docs are generated from the docstrings with MkDocs + mkdocstrings (ruff's `D` rules,
-Google convention, require docstrings on everything public in `src/`):
-
-```bash
-uv run --group docs mkdocs serve           # live preview at http://127.0.0.1:8000
-uv run --group docs mkdocs build --strict  # fails on broken cross-references
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and how releases work.
 
 See [`examples/`](examples/README.md) for runnable SDKs against GitHub, PokéAPI and
 jsonplaceholder, plus offline walkthroughs of pagination, auth, custom clients, request shapes,

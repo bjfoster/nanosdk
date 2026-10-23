@@ -9,3 +9,7 @@ build/
 dist/
 site/
 tests/e2e/.cache/
+.DS_Store
+.coverage
+htmlcov/
+.env

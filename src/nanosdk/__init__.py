@@ -25,6 +25,7 @@ Everything public is importable from `nanosdk` directly, plus the
 """
 
 import logging
+from importlib.metadata import version as _version
 
 from . import auth, frames
 from .client import (
@@ -62,7 +63,7 @@ from .routing import (
     route,
 )
 
-__version__ = "0.1.0"
+__version__ = _version("nanosdk")
 
 # Libraries shouldn't print unless the application configures logging.
 logging.getLogger("nanosdk").addHandler(logging.NullHandler())

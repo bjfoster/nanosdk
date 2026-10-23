@@ -1,6 +1,9 @@
 site_name: nanosdk
+site_url: https://bjfoster.github.io/nanosdk/
+repo_url: https://github.com/bjfoster/nanosdk
+edit_uri: edit/main/docs/
 site_description: A tiny, fully typed HTTP client core on httpx + pydantic.
-repo_name: nanosdk
+repo_name: bjfoster/nanosdk
 copyright: MIT License
 
 theme:
