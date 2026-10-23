@@ -1,0 +1,79 @@
+# Install once: uv run pre-commit install
+# Runs ruff + file hygiene on commit, checks the commit message, and runs the type
+# checkers before each push. CI runs the same hooks (`pre-commit run --all-files`).
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+exclude: |
+  (?x)^(
+    examples/realtime-trains/spec/.*                            # upstream spec, byte for byte
+    | examples/petstore-workspace/packages/petstore/openapi\.json  # vendored spec
+    | .*/_generated/.*                                          # `nanosdk generate` output
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  # Keep every lockfile in sync with its pyproject.toml.
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.13.0
+    hooks:
+      - id: uv-lock
+      - id: uv-lock
+        name: uv-lock (examples/petstore-workspace)
+        args: [--project, examples/petstore-workspace]
+        files: ^examples/petstore-workspace/(.*pyproject\.toml|uv\.lock)$
+      - id: uv-lock
+        name: uv-lock (examples/realtime-trains)
+        args: [--project, examples/realtime-trains]
+        files: ^examples/realtime-trains/(pyproject\.toml|uv\.lock)$
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # Tools from the lockfile (`uv run`), so hooks, CI and your editor agree on versions.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: pyright
+        name: pyright
+        entry: uv run --frozen pyright
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: mypy
+        name: mypy
+        entry: uv run --frozen mypy
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: ty
+        name: ty
+        entry: uv run --frozen ty check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
