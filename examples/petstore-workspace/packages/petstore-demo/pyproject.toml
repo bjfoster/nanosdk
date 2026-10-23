@@ -1,0 +1,22 @@
+[project]
+name = "petstore-demo"
+version = "0.1.0"
+description = "Demo app using the petstore SDK from the same workspace"
+readme = "README.md"
+authors = [
+    { name = "Benjamin Foster", email = "bjfoster.wrk@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "petstore",
+]
+
+[project.scripts]
+petstore-demo = "petstore_demo:main"
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+petstore = { workspace = true }

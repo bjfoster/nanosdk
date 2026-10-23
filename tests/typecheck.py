@@ -1,8 +1,10 @@
 """Static typing checks. Not executed by pytest; run `pyright` / `mypy` over it."""
 
+from collections.abc import AsyncIterator, Iterator
 from typing import Annotated, assert_type
 
 import httpx
+import polars as pl
 from pydantic import BaseModel
 
 import nanoapi
@@ -78,3 +80,59 @@ async def async_usage(api: AsyncApi) -> None:
 
 def class_access() -> None:
     assert_type(Api.ping, "nanoapi.Route[[], None, str]")
+
+
+# --- map / pagination ---------------------------------------------------------
+
+
+class Post(BaseModel):
+    id: int
+
+
+class PostPage(BaseModel):
+    data: list[Post]
+    next_cursor: str | None = None
+
+
+class ListPosts(BaseModel):
+    cursor: str | None = None
+    limit: int = 10
+
+
+class Posts(nanoapi.Routes, prefix="/posts"):
+    page = nanoapi.get("", request=ListPosts, response=PostPage).paginate(
+        nanoapi.Cursor("next_cursor"), items=lambda p: p.data
+    )
+    flat = nanoapi.get("/flat", request=ListPosts, response=list[Post]).paginate(nanoapi.Offset())
+    linked = nanoapi.get("/linked", response=list[Post]).paginate(nanoapi.LinkHeader())
+    count = nanoapi.get("", response=list[Post]).map(len)
+    frame = nanoapi.get("", response=list[Post]).map(nanoapi.frames.polars)
+
+
+class PagedApi(Posts, nanoapi.Client):
+    pass
+
+
+class AsyncPagedApi(Posts, nanoapi.AsyncClient):
+    pass
+
+
+def paged_usage(api: PagedApi) -> None:
+    assert_type(api.page(limit=5), PostPage)
+    assert_type(api.page.iter(limit=5), Iterator[Post])
+    assert_type(api.page.pages(), Iterator[nanoapi.Page[ListPosts, PostPage, Post]])
+    assert_type(api.flat.iter(), Iterator[Post])
+    assert_type(api.linked.iter(), Iterator[Post])
+    assert_type(api.count(), int)
+    assert_type(api.frame(), pl.DataFrame)
+    assert_type(api.iter(Posts.page, cursor="c"), Iterator[Post])
+
+    api.page.iter(limit="x")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    api.linked.iter(1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[too-many-positional-arguments]
+
+
+async def async_paged_usage(api: AsyncPagedApi) -> None:
+    assert_type(await api.page(), PostPage)
+    assert_type(api.page.iter(), AsyncIterator[Post])
+    assert_type([p async for p in api.flat.iter()], list[Post])
+    assert_type(await api.frame(), pl.DataFrame)

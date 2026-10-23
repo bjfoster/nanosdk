@@ -22,6 +22,10 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
+[project.optional-dependencies]
+polars = ["polars>=1"]
+pandas = ["pandas>=2"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",
@@ -30,6 +34,9 @@ dev = [
     "mypy>=1.12",
     "ruff",
     "ty>=0.0.91",
+    "polars>=2.0.0",
+    "pandas>=3.1.0",
+    "pandas-stubs>=3.0.5.260914",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -37,7 +44,7 @@ packages = ["src/nanoapi"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests", "examples/test_my_sdk.py"]
 
 [tool.ruff]
 line-length = 100
@@ -67,6 +74,7 @@ known-first-party = ["nanoapi"]
 
 [tool.pyright]
 include = ["src", "tests/typecheck.py", "examples"]
+exclude = ["examples/petstore-workspace"]  # its own uv workspace, env and checks
 typeCheckingMode = "strict"
 pythonVersion = "3.13"
 enableTypeIgnoreComments = false
@@ -77,6 +85,7 @@ python-version = "3.13"
 
 [tool.ty.src]
 include = ["src", "tests/typecheck.py", "examples"]
+exclude = ["examples/petstore-workspace"]
 
 [tool.ty.rules]
 unused-ignore-comment = "error"
@@ -85,3 +94,4 @@ unused-ignore-comment = "error"
 strict = true
 python_version = "3.13"
 files = ["src", "tests/typecheck.py", "examples"]
+exclude = ["^examples/petstore-workspace/"]

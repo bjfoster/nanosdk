@@ -1,0 +1,118 @@
+"""Ready-made ``httpx.Auth`` implementations. Pass one as ``auth=`` to any client.
+
+They work with both ``Client`` and ``AsyncClient``: httpx drives the same flow either way.
+"""
+
+import base64
+import math
+import time
+from collections.abc import Callable, Generator, Mapping
+from typing import Any, Literal, cast
+
+import httpx
+
+from ._errors import APIStatusError
+
+__all__ = ["ApiKey", "Bearer", "OAuth2ClientCredentials"]
+
+
+class Bearer(httpx.Auth):
+    """``Authorization: Bearer <token>``. ``token`` may be a function, called per request."""
+
+    def __init__(self, token: str | Callable[[], str]) -> None:
+        self._token = token
+
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        token = self._token if isinstance(self._token, str) else self._token()
+        request.headers["Authorization"] = f"Bearer {token}"
+        yield request
+
+
+class ApiKey(httpx.Auth):
+    """A static key sent as a header (default) or a query parameter."""
+
+    def __init__(
+        self, name: str, value: str, *, location: Literal["header", "query"] = "header"
+    ) -> None:
+        self.name = name
+        self._value = value
+        self.location = location
+
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        if self.location == "header":
+            request.headers[self.name] = self._value
+        else:
+            request.url = request.url.copy_merge_params({self.name: self._value})
+        yield request
+
+
+class OAuth2ClientCredentials(httpx.Auth):
+    """OAuth 2 client-credentials grant (RFC 6749 §4.4).
+
+    Fetches a token on first use, caches it until shortly before ``expires_in``, and
+    fetches a fresh one (then retries once) if the API answers 401. ``token_url`` must
+    be absolute: token requests don't go through the client's ``base_url``.
+    """
+
+    requires_response_body = True
+
+    def __init__(
+        self,
+        token_url: str | httpx.URL,
+        client_id: str,
+        client_secret: str,
+        *,
+        scope: str | None = None,
+        extra: Mapping[str, str] | None = None,
+        credentials_in: Literal["header", "body"] = "header",
+        leeway: float = 30.0,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.token_url = httpx.URL(token_url)
+        if not self.token_url.is_absolute_url:
+            raise ValueError(f"token_url must be absolute, got {str(token_url)!r}")
+        self.client_id = client_id
+        self._client_secret = client_secret
+        self.scope = scope
+        self.extra = dict(extra or {})
+        self.credentials_in = credentials_in
+        self.leeway = leeway
+        self._clock = clock
+        self._token: str | None = None
+        self._expires_at = 0.0
+
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
+        if self._token is None or self._clock() >= self._expires_at:
+            self._store((yield self._token_request()))
+        request.headers["Authorization"] = f"Bearer {self._token}"
+        response = yield request
+        if response.status_code == 401:
+            self._store((yield self._token_request()))
+            request.headers["Authorization"] = f"Bearer {self._token}"
+            yield request
+
+    def _token_request(self) -> httpx.Request:
+        data = {"grant_type": "client_credentials", **self.extra}
+        if self.scope:
+            data["scope"] = self.scope
+        headers: dict[str, str] = {"Accept": "application/json"}
+        if self.credentials_in == "header":
+            raw = f"{self.client_id}:{self._client_secret}".encode()
+            headers["Authorization"] = "Basic " + base64.b64encode(raw).decode()
+        else:
+            data |= {"client_id": self.client_id, "client_secret": self._client_secret}
+        return httpx.Request("POST", self.token_url, data=data, headers=headers)
+
+    def _store(self, response: httpx.Response) -> None:
+        try:
+            body: Any = response.json()
+        except ValueError:
+            body = response.text
+        if response.is_error or not isinstance(body, dict) or "access_token" not in body:
+            raise APIStatusError(response, body=body)
+        payload = cast(dict[str, Any], body)
+        self._token = str(payload["access_token"])
+        expires_in = payload.get("expires_in")
+        self._expires_at = (
+            self._clock() + float(expires_in) - self.leeway if expires_in else math.inf
+        )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Self, cast, overload
@@ -11,12 +11,32 @@ import httpx
 from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 
 from ._errors import ResponseValidationError
+from ._paginate import NextPage, Page
 from ._params import Location, Param
 
 if TYPE_CHECKING:
-    from ._client import AsyncBoundRoute, AsyncClient, BoundRoute, Client
+    from ._client import (
+        AsyncBoundPaginatedRoute,
+        AsyncBoundRoute,
+        AsyncClient,
+        BoundPaginatedRoute,
+        BoundRoute,
+        Client,
+    )
 
-__all__ = ["Route", "Routes", "delete", "get", "head", "options", "patch", "post", "put", "route"]
+__all__ = [
+    "PaginatedRoute",
+    "Route",
+    "Routes",
+    "delete",
+    "get",
+    "head",
+    "options",
+    "patch",
+    "post",
+    "put",
+    "route",
+]
 
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 _PLACEHOLDER = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
@@ -68,6 +88,7 @@ class Route[**P, ReqT, RespT]:
         headers: Mapping[str, str] | None = None,
         exclude_unset: bool | None = None,
         name: str | None = None,
+        meta: Mapping[str, Any] | None = None,
     ) -> None:
         self.method = method.upper()
         self.path = path
@@ -77,6 +98,9 @@ class Route[**P, ReqT, RespT]:
         # PATCH bodies only send fields you actually set, unless told otherwise.
         self.exclude_unset = self.method == "PATCH" if exclude_unset is None else exclude_unset
         self.name = name
+        # Free-form data for your client hooks (prepare_request, retry_policy, ...).
+        self.meta: dict[str, Any] = dict(meta or {})
+        self._maps: tuple[Callable[[Any], Any], ...] = ()
 
     # -- descriptor protocol: Route on a Client subclass becomes a bound, callable route --
 
@@ -98,13 +122,40 @@ class Route[**P, ReqT, RespT]:
 
     # -- helpers ------------------------------------------------------------
 
-    def with_prefix(self, prefix: str) -> Self:
+    def _clone(self) -> Self:
         clone = type(self).__new__(type(self))
         clone.__dict__.update(
             {k: v for k, v in self.__dict__.items() if k not in ("_plan", "_adapter")}
         )
+        return clone
+
+    def with_prefix(self, prefix: str) -> Self:
+        clone = self._clone()
         clone.path = prefix.rstrip("/") + "/" + self.path.lstrip("/") if self.path else prefix
         return clone
+
+    def map[U](self, fn: Callable[[RespT], U]) -> Route[P, ReqT, U]:
+        """A copy whose decoded response is passed through ``fn``: ``.map(frames.polars)``."""
+        clone = cast(Route[Any, Any, Any], self._clone())
+        clone._maps = (*self._maps, fn)
+        return clone
+
+    @overload
+    def paginate[I](
+        self: Route[P, ReqT, list[I]], next: NextPage[ReqT, list[I], I]
+    ) -> PaginatedRoute[P, ReqT, list[I], I]: ...
+    @overload
+    def paginate[I](
+        self, next: NextPage[ReqT, RespT, Any], *, items: Callable[[RespT], Iterable[I]]
+    ) -> PaginatedRoute[P, ReqT, RespT, I]: ...
+    def paginate(self, next: Any, *, items: Any = None) -> PaginatedRoute[Any, Any, Any, Any]:
+        """Make the route iterable across pages.
+
+        ``next`` picks the next request (``Cursor``, ``Offset``, ``PageNumber``,
+        ``LinkHeader`` or your own function of the ``Page``). ``items`` pulls the item
+        list out of a page; it can be omitted when the response is already a list.
+        """
+        return PaginatedRoute(self, items=items or _as_items, next=next)
 
     def __repr__(self) -> str:
         req = getattr(self.request, "__name__", None)
@@ -241,22 +292,32 @@ class Route[**P, ReqT, RespT]:
         return TypeAdapter(self.response)
 
     def parse(self, response: httpx.Response) -> RespT:
-        """Decode a successful ``httpx.Response`` into the declared response type."""
+        """Decode a successful ``httpx.Response`` into the declared type, then apply ``map``s."""
+        value: Any = self._decode(response)
+        for fn in self._maps:
+            value = fn(value)
+        return cast(RespT, value)
+
+    def _decode(self, response: httpx.Response) -> Any:
         t = self.response
         if t is None:
-            return cast(RespT, None)
+            return None
         if t is httpx.Response:
-            return cast(RespT, response)
+            return response
         if t is bytes:
-            return cast(RespT, response.content)
+            return response.content
         if t is str:
-            return cast(RespT, response.text)
+            return response.text
         try:
             if not response.content:
-                return cast(RespT, self._adapter.validate_python(None))
-            return cast(RespT, self._adapter.validate_json(response.content))
+                return self._adapter.validate_python(None)
+            return self._adapter.validate_json(response.content)
         except ValidationError as exc:
             raise ResponseValidationError(response, exc) from exc
+
+
+def _as_items(data: Any) -> Iterable[Any]:
+    return cast(Iterable[Any], data)  # a list response is already its own items
 
 
 def _iter(value: Any) -> list[Any]:
@@ -284,6 +345,7 @@ class _Verb:
         response: type[RespT],
         headers: Mapping[str, str] | None = ...,
         exclude_unset: bool | None = ...,
+        meta: Mapping[str, Any] | None = ...,
     ) -> Route[P, ReqT, RespT]: ...
     @overload
     def __call__[**P, ReqT](
@@ -294,6 +356,7 @@ class _Verb:
         response: None = ...,
         headers: Mapping[str, str] | None = ...,
         exclude_unset: bool | None = ...,
+        meta: Mapping[str, Any] | None = ...,
     ) -> Route[P, ReqT, None]: ...
     @overload
     def __call__[RespT](
@@ -304,6 +367,7 @@ class _Verb:
         response: type[RespT],
         headers: Mapping[str, str] | None = ...,
         exclude_unset: bool | None = ...,
+        meta: Mapping[str, Any] | None = ...,
     ) -> Route[[], None, RespT]: ...
     @overload
     def __call__(
@@ -314,6 +378,7 @@ class _Verb:
         response: None = ...,
         headers: Mapping[str, str] | None = ...,
         exclude_unset: bool | None = ...,
+        meta: Mapping[str, Any] | None = ...,
     ) -> Route[[], None, None]: ...
     def __call__(
         self,
@@ -323,6 +388,7 @@ class _Verb:
         response: Any = None,
         headers: Mapping[str, str] | None = None,
         exclude_unset: bool | None = None,
+        meta: Mapping[str, Any] | None = None,
     ) -> Route[Any, Any, Any]:
         return Route(
             self.method,
@@ -331,6 +397,7 @@ class _Verb:
             response=response,
             headers=headers,
             exclude_unset=exclude_unset,
+            meta=meta,
         )
 
 
@@ -358,5 +425,51 @@ class Routes:
         super().__init_subclass__(**kwargs)
         if prefix:
             for attr, value in list(vars(cls).items()):
-                if isinstance(value, Route):
+                if isinstance(value, Route | PaginatedRoute):
                     setattr(cls, attr, value.with_prefix(prefix))
+
+
+class PaginatedRoute[**P, ReqT, RespT, ItemT]:
+    """A route plus the rules for walking its pages. Made by ``Route.paginate``.
+
+    Bound to a client it gains ``.iter(...)`` (items across all pages) and
+    ``.pages(...)`` (``Page`` objects); calling it still fetches just the first page.
+    """
+
+    def __init__(
+        self,
+        route: Route[P, ReqT, RespT],
+        *,
+        items: Callable[[RespT], Iterable[ItemT]],
+        next: NextPage[ReqT, RespT, ItemT],
+    ) -> None:
+        self.route = route
+        self.items = items
+        self.next_page = next
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.route.__set_name__(owner, name)
+
+    @overload
+    def __get__(self, instance: None, owner: type[Any]) -> Self: ...
+    @overload
+    def __get__(
+        self, instance: Client, owner: type[Any]
+    ) -> BoundPaginatedRoute[P, ReqT, RespT, ItemT]: ...
+    @overload
+    def __get__(
+        self, instance: AsyncClient, owner: type[Any]
+    ) -> AsyncBoundPaginatedRoute[P, ReqT, RespT, ItemT]: ...
+    def __get__(self, instance: object, owner: type[Any]) -> Any:
+        bind = getattr(instance, "_bind_paginated", None)
+        return self if bind is None else bind(self)
+
+    def with_prefix(self, prefix: str) -> Self:
+        return type(self)(self.route.with_prefix(prefix), items=self.items, next=self.next_page)
+
+    def make_page(self, request: ReqT, response: httpx.Response) -> Page[ReqT, RespT, ItemT]:
+        data = self.route.parse(response)
+        return Page(request, data, list(self.items(data)), response)
+
+    def __repr__(self) -> str:
+        return f"<paginated {self.route!r}>"

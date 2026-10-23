@@ -32,7 +32,7 @@ both see it.
 
 ```bash
 uv sync                     # from this folder; installs the dev group (pytest, pyright, mypy, ty, ruff)
-pip install -e .            # or without uv
+pip install -e ".[polars]"  # or without uv; extras: polars, pandas
 ```
 
 Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
@@ -40,7 +40,7 @@ Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
 ## Declaring routes
 
 ```python
-nanoapi.get(path, request=Model, response=Type, headers={...}, exclude_unset=None)
+nanoapi.get(path, request=Model, response=Type, headers={...}, exclude_unset=None, meta={...})
 ```
 
 `get / post / put / patch / delete / head / options`, plus `nanoapi.route("PROPFIND")` for anything else.
@@ -132,8 +132,9 @@ api.get_user.build_request(user_id=1)   # httpx.Request, not sent
 api = Api(
     "https://api.example.com/v2",
     headers={"User-Agent": "my-sdk/1.0"},
-    auth=("user", "pass"),            # or any httpx.Auth
+    auth=nanoapi.auth.Bearer(token),  # or ("user", "pass"), or any httpx.Auth
     timeout=10,
+    retry=nanoapi.Retry(),            # retry 408/429/502/503/504 + connection errors
     error_model=ApiError,             # parse 4xx/5xx bodies into APIStatusError.error
     transport=httpx.HTTPTransport(retries=3),   # any other httpx.Client kwarg
 )
@@ -142,7 +143,94 @@ api = Api(http_client=my_httpx_client)          # or bring your own (not closed 
 scoped = api.with_options(headers={"Authorization": f"Bearer {tok}"}, timeout=60)
 ```
 
-`with_options` returns a copy of the same class sharing the connection pool.
+`with_options` returns a copy of the same class sharing the connection pool
+(`with_options(retry=None)` turns retries off for that copy).
+
+## Auth
+
+`nanoapi.auth` has `httpx.Auth` implementations that work with sync and async clients:
+
+```python
+from nanoapi.auth import ApiKey, Bearer, OAuth2ClientCredentials
+
+Bearer("tok")                          # Authorization: Bearer tok
+Bearer(lambda: vault.read("token"))    # called per request
+ApiKey("X-Api-Key", key)               # header; ApiKey("key", key, location="query")
+OAuth2ClientCredentials(
+    "https://auth.example.com/oauth/token", client_id, client_secret, scope="read",
+)   # fetches + caches the token, refreshes before expiry and once on a 401
+```
+
+## Pagination
+
+`.paginate(next)` makes a route iterable across pages. `next` picks the following
+request from the current `Page` (`.request`, `.data`, `.items`, `.response`):
+
+```python
+class Posts(nanoapi.Routes, prefix="/posts"):
+    # response is a list -> its items are the page's items
+    by_offset = nanoapi.get("", request=ListPosts, response=list[Post]).paginate(
+        nanoapi.Offset("offset", limit="limit")    # stops on an empty or short page
+    )
+    # response wraps the list -> say where the items are
+    by_cursor = nanoapi.get("/feed", request=Feed, response=FeedPage).paginate(
+        nanoapi.Cursor("meta.next_cursor", param="cursor"), items=lambda page: page.data
+    )
+
+api.by_offset(limit=50)              # list[Post]: just the first page, as before
+api.by_offset.iter(limit=50)         # Iterator[Post] across every page, lazily
+api.by_offset.pages(limit=50)        # Iterator[Page[ListPosts, list[Post], Post]]
+async for post in aapi.by_cursor.iter(): ...   # AsyncIterator[Post]
+client.iter(Posts.by_offset, limit=50)          # ad hoc, like client.call
+```
+
+Strategies: `Cursor`, `Offset`, `PageNumber("page", size="per_page")`,
+`LinkHeader()` (RFC 8288 `rel="next"`, as GitHub uses), or any function
+`(Page) -> next request model | httpx.URL | None`. Arguments are validated when you
+call `.iter()`; requests go out as you consume it. A strategy that returns the same
+request twice stops instead of looping forever.
+
+## Transforming responses and DataFrames
+
+`.map(fn)` runs `fn` on the decoded response; the route's return type follows:
+
+```python
+count = nanoapi.get("/posts", response=list[Post]).map(len)                    # -> int
+frame = nanoapi.get("/posts", response=list[Post]).map(nanoapi.frames.polars)  # -> pl.DataFrame
+```
+
+`nanoapi.frames.polars` / `.pandas` (extras: `pip install "nanoapi[polars]"`) turn
+models, dicts, or any iterable of them into a DataFrame, so they also work on
+pagination: `nanoapi.frames.polars(api.by_offset.iter())`. `frames.records` gives
+the plain-dict rows.
+
+## Custom behaviour
+
+Subclass the client and override any of these:
+
+```python
+class Api(nanoapi.Client):
+    public = nanoapi.get("/status", response=Status, meta={"auth": False})
+
+    def prepare_request(self, request, route):    # every attempt: sign, log, rewrite
+        if route.meta.get("auth", True):
+            request.headers["X-Signature"] = sign(request)
+        return request
+
+    def process_response(self, response, route):  # before status check + decoding
+        return response
+
+    def retry_policy(self, route):                # per-route retry, e.g. from meta
+        return None if route.meta.get("no_retry") else super().retry_policy(route)
+
+    def raise_for_status(self, response): ...     # map errors your own way
+```
+
+On `AsyncClient`, `prepare_request` and `process_response` are `async def`. `meta=`
+is free-form data on any route for your hooks to read. `Retry` is a frozen dataclass
+(`max_retries`, `statuses`, `methods`, `backoff`, `max_delay`, `jitter`,
+`respect_retry_after`); subclass it and override `should_retry` / `delay` for more.
+POST isn't retried unless you add it to `methods`.
 
 ## Errors
 
@@ -153,7 +241,8 @@ All inherit `nanoapi.NanoAPIError`:
 - `ResponseValidationError` — a 2xx body didn't match `response=`
 
 Invalid *arguments* raise pydantic's `ValidationError` before anything is sent.
-Override `raise_for_status(self, response)` on your client to map errors your own way.
+Override `raise_for_status(self, response)` on your client to map errors your own way
+(see [Custom behaviour](#custom-behaviour)).
 
 ## Development
 
@@ -166,4 +255,6 @@ uv run mypy              # strict
 uv run ty check          # Astral's ty (3 of the 5 must-fail cases; see typecheck.py)
 ```
 
-See `examples/jsonplaceholder.py` for a full small SDK.
+See [`examples/`](examples/README.md) for runnable SDKs against GitHub, PokéAPI and
+jsonplaceholder, plus offline walkthroughs of pagination, auth, custom clients, request shapes,
+DataFrames and testing.

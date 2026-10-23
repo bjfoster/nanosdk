@@ -1,4 +1,4 @@
-"""A complete SDK for https://jsonplaceholder.typicode.com in ~40 lines.
+"""A complete SDK for https://jsonplaceholder.typicode.com in ~50 lines.
 
 Run:  python examples/jsonplaceholder.py
 """
@@ -28,6 +28,11 @@ class ListPosts(BaseModel):
     user_id: Annotated[int | None, nanoapi.Query(alias="userId")] = None
 
 
+class PagePosts(BaseModel):
+    page: Annotated[int, nanoapi.Query(alias="_page")] = 1
+    limit: Annotated[int, nanoapi.Query(alias="_limit")] = 25
+
+
 class NewPost(BaseModel):
     title: str
     body: str
@@ -45,20 +50,26 @@ class EditPost(BaseModel):
 
 class Posts(nanoapi.Routes, prefix="/posts"):
     list_posts = nanoapi.get("", request=ListPosts, response=list[Post])
+    all_posts = nanoapi.get("", request=PagePosts, response=list[Post]).paginate(
+        nanoapi.PageNumber("page", size="limit")
+    )
     get_post = nanoapi.get("/{post_id}", request=PostId, response=Post)
     create_post = nanoapi.post("", request=NewPost, response=Post)
     edit_post = nanoapi.patch("/{post_id}", request=EditPost, response=Post)
     delete_post = nanoapi.delete("/{post_id}", request=PostId)
 
 
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+
 class JSONPlaceholder(Posts, nanoapi.Client):
     def __init__(self) -> None:
-        super().__init__("https://jsonplaceholder.typicode.com")
+        super().__init__(BASE_URL, retry=nanoapi.Retry())
 
 
 class AsyncJSONPlaceholder(Posts, nanoapi.AsyncClient):
     def __init__(self) -> None:
-        super().__init__("https://jsonplaceholder.typicode.com")
+        super().__init__(BASE_URL, retry=nanoapi.Retry())
 
 
 def main() -> None:
@@ -71,6 +82,8 @@ def main() -> None:
         print("created", new.id)
         api.edit_post(post_id=1, title="renamed")  # PATCH {"title": "renamed"}
         api.delete_post(post_id=1)  # None
+        total = sum(1 for _ in api.all_posts.iter(limit=40))  # Iterator[Post], 3 requests
+        print(total, "posts in all")
 
 
 async def amain() -> None:

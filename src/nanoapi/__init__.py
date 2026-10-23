@@ -19,7 +19,16 @@ Declare routes, get a typed client::
         user = gh.get_user(username="octocat")  # typed: User
 """
 
-from ._client import NOT_GIVEN, AsyncBoundRoute, AsyncClient, BoundRoute, Client
+from . import auth, frames
+from ._client import (
+    NOT_GIVEN,
+    AsyncBoundPaginatedRoute,
+    AsyncBoundRoute,
+    AsyncClient,
+    BoundPaginatedRoute,
+    BoundRoute,
+    Client,
+)
 from ._errors import (
     APIConnectionError,
     APIStatusError,
@@ -27,8 +36,22 @@ from ._errors import (
     NanoAPIError,
     ResponseValidationError,
 )
+from ._paginate import Cursor, LinkHeader, NextPage, Offset, Page, PageNumber
 from ._params import Body, File, Form, Header, Json, Location, Param, Path, Query
-from ._route import Route, Routes, delete, get, head, options, patch, post, put, route
+from ._retry import Retry
+from ._route import (
+    PaginatedRoute,
+    Route,
+    Routes,
+    delete,
+    get,
+    head,
+    options,
+    patch,
+    post,
+    put,
+    route,
+)
 
 __version__ = "0.1.0"
 
@@ -37,24 +60,36 @@ __all__ = [
     "APIConnectionError",
     "APIStatusError",
     "APITimeoutError",
+    "AsyncBoundPaginatedRoute",
     "AsyncBoundRoute",
     "AsyncClient",
     "Body",
+    "BoundPaginatedRoute",
     "BoundRoute",
     "Client",
+    "Cursor",
     "File",
     "Form",
     "Header",
     "Json",
+    "LinkHeader",
     "Location",
     "NanoAPIError",
+    "NextPage",
+    "Offset",
+    "Page",
+    "PageNumber",
+    "PaginatedRoute",
     "Param",
     "Path",
     "Query",
     "ResponseValidationError",
+    "Retry",
     "Route",
     "Routes",
+    "auth",
     "delete",
+    "frames",
     "get",
     "head",
     "options",
