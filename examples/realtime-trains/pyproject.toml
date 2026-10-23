@@ -1,7 +1,7 @@
 [project]
 name = "realtime-trains"
 version = "0.1.0"
-description = "Typed client for the Realtime Trains API (data.rtt.io), built on nanoapi"
+description = "Typed client for the Realtime Trains API (data.rtt.io), built on nanosdk"
 readme = "README.md"
 authors = [
     { name = "Benjamin Foster", email = "bjfoster.wrk@gmail.com" }
@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
-    "nanoapi",
+    "nanosdk",
     "pydantic>=2.14.1",
 ]
 
@@ -26,11 +26,11 @@ requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-nanoapi = { path = "../..", editable = true }
+nanosdk = { path = "../..", editable = true }
 
 [dependency-groups]
 dev = [
-    "nanoapi[codegen]",
+    "nanosdk[codegen]",
     "polars>=2.0.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
@@ -42,7 +42,7 @@ dev = [
 ]
 
 # `uv run scripts/generate.py` (optionally --fetch) regenerates src/realtime_trains/_generated.
-[tool.nanoapi.codegen]
+[tool.nanosdk.codegen]
 spec = "spec/rtt-api.yml"
 output = "src/realtime_trains/_generated"
 name = "RealtimeTrainsBase"
@@ -59,7 +59,7 @@ skip = [
     "GET /api/get_access_token",
 ]
 
-[tool.nanoapi.codegen.rename]  # route names (and so response model names)
+[tool.nanosdk.codegen.rename]  # route names (and so response model names)
 "GET /rtt/location" = "location"
 "GET /rtt/service" = "service"
 "GET /gb-nr/location" = "nr_location"
@@ -72,11 +72,11 @@ skip = [
 "GET /api/get_access_token" = "access_token"
 
 [tool.ruff]
-extend = "../../pyproject.toml"  # nanoapi's style
-extend-exclude = ["src/realtime_trains/_generated"]  # `nanoapi generate` output
+extend = "../../pyproject.toml"  # nanosdk's style
+extend-exclude = ["src/realtime_trains/_generated"]  # `nanosdk generate` output
 
 [tool.ruff.lint.per-file-ignores]
-# Replaces nanoapi's list: this package's own src/ must be documented too.
+# Replaces nanosdk's list: this package's own src/ must be documented too.
 "tests/**" = ["D"]
 "scripts/**" = ["D"]
 

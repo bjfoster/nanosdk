@@ -1,16 +1,16 @@
-::: nanoapi.errors
+::: nanosdk.errors
     options:
       members: false
       show_root_heading: true
       show_root_full_path: true
       heading_level: 1
 
-::: nanoapi.NanoAPIError
+::: nanosdk.NanoSDKError
 
-::: nanoapi.APIConnectionError
+::: nanosdk.APIConnectionError
 
-::: nanoapi.APITimeoutError
+::: nanosdk.APITimeoutError
 
-::: nanoapi.APIStatusError
+::: nanosdk.APIStatusError
 
-::: nanoapi.ResponseValidationError
+::: nanosdk.ResponseValidationError

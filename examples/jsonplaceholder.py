@@ -8,7 +8,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-import nanoapi
+import nanosdk
 
 # --- models -----------------------------------------------------------------
 
@@ -25,12 +25,12 @@ class PostId(BaseModel):
 
 
 class ListPosts(BaseModel):
-    user_id: Annotated[int | None, nanoapi.Query(alias="userId")] = None
+    user_id: Annotated[int | None, nanosdk.Query(alias="userId")] = None
 
 
 class PagePosts(BaseModel):
-    page: Annotated[int, nanoapi.Query(alias="_page")] = 1
-    limit: Annotated[int, nanoapi.Query(alias="_limit")] = 25
+    page: Annotated[int, nanosdk.Query(alias="_page")] = 1
+    limit: Annotated[int, nanosdk.Query(alias="_limit")] = 25
 
 
 class NewPost(BaseModel):
@@ -48,28 +48,28 @@ class EditPost(BaseModel):
 # --- routes (shared by the sync and async clients) --------------------------
 
 
-class Posts(nanoapi.Routes, prefix="/posts"):
-    list_posts = nanoapi.get("", request=ListPosts, response=list[Post])
-    all_posts = nanoapi.get("", request=PagePosts, response=list[Post]).paginate(
-        nanoapi.PageNumber("page", size="limit")
+class Posts(nanosdk.Routes, prefix="/posts"):
+    list_posts = nanosdk.get("", request=ListPosts, response=list[Post])
+    all_posts = nanosdk.get("", request=PagePosts, response=list[Post]).paginate(
+        nanosdk.PageNumber("page", size="limit")
     )
-    get_post = nanoapi.get("/{post_id}", request=PostId, response=Post)
-    create_post = nanoapi.post("", request=NewPost, response=Post)
-    edit_post = nanoapi.patch("/{post_id}", request=EditPost, response=Post)
-    delete_post = nanoapi.delete("/{post_id}", request=PostId)
+    get_post = nanosdk.get("/{post_id}", request=PostId, response=Post)
+    create_post = nanosdk.post("", request=NewPost, response=Post)
+    edit_post = nanosdk.patch("/{post_id}", request=EditPost, response=Post)
+    delete_post = nanosdk.delete("/{post_id}", request=PostId)
 
 
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
 
-class JSONPlaceholder(Posts, nanoapi.Client):
+class JSONPlaceholder(Posts, nanosdk.Client):
     def __init__(self) -> None:
-        super().__init__(BASE_URL, retry=nanoapi.Retry())
+        super().__init__(BASE_URL, retry=nanosdk.Retry())
 
 
-class AsyncJSONPlaceholder(Posts, nanoapi.AsyncClient):
+class AsyncJSONPlaceholder(Posts, nanosdk.AsyncClient):
     def __init__(self) -> None:
-        super().__init__(BASE_URL, retry=nanoapi.Retry())
+        super().__init__(BASE_URL, retry=nanosdk.Retry())
 
 
 def main() -> None:

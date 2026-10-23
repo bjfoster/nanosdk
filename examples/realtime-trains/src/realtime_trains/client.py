@@ -1,6 +1,6 @@
 """The hand-written half of the client, on top of the generated `_generated` package.
 
-`nanoapi generate` (see pyproject.toml) produces the models, the routes for allocations
+`nanosdk generate` (see pyproject.toml) produces the models, the routes for allocations
 by service, reference data and account info, and the `RealtimeTrainsBase` clients. This
 module adds what the spec can't express: the location and service queries, whose
 documented rules (exclusive parameters, window limits) need validators; friendly names
@@ -19,7 +19,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
-import nanoapi
+import nanosdk
 
 from ._generated import models
 from ._generated.client import (
@@ -70,7 +70,7 @@ AllocationsByServiceQuery = NrAllocationsByServiceParams  # generated
 MAX_WINDOW = timedelta(hours=23, minutes=59)
 
 LOGGER = logging.getLogger("realtime_trains")
-"""Requests, responses and retries are logged here (see nanoapi's logging docs)."""
+"""Requests, responses and retries are logged here (see nanosdk's logging docs)."""
 
 
 # --- query parameters -------------------------------------------------------------
@@ -180,7 +180,7 @@ class AllocationsByClassQuery(_Params):
     """
 
     departure_date: date
-    vehicle_class: Annotated[str, nanoapi.Query(alias="class")]
+    vehicle_class: Annotated[str, nanosdk.Query(alias="class")]
 
 
 # --- routes -------------------------------------------------------------------------
@@ -189,29 +189,29 @@ class AllocationsByClassQuery(_Params):
 _EMPTY_ON_204 = {"empty_on_204": True}
 
 
-class GenericRoutes(nanoapi.Routes, prefix="/rtt"):
+class GenericRoutes(nanosdk.Routes, prefix="/rtt"):
     """Namespace-independent queries, with hand-written parameter rules."""
 
-    location = nanoapi.get(
+    location = nanosdk.get(
         "/location", request=LocationQuery, response=LocationLineUp, meta=_EMPTY_ON_204
     )
     board = location.map(departure_board)  # the same call, flattened to board rows
-    service = nanoapi.get("/service", request=ServiceQuery, response=ServiceDetail)
+    service = nanosdk.get("/service", request=ServiceQuery, response=ServiceDetail)
 
 
-class NetworkRailQueries(nanoapi.Routes, prefix="/gb-nr"):
+class NetworkRailQueries(nanosdk.Routes, prefix="/gb-nr"):
     """Network Rail (`gb-nr`) queries with hand-written parameter rules."""
 
-    nr_location = nanoapi.get(
+    nr_location = nanosdk.get(
         "/location",
         request=NetworkRailLocationQuery,
         response=NetworkRailLocationLineUp,
         meta=_EMPTY_ON_204,
     )
-    nr_service = nanoapi.get(
+    nr_service = nanosdk.get(
         "/service", request=NetworkRailServiceQuery, response=NetworkRailServiceDetail
     )
-    nr_allocations_by_class = nanoapi.get(
+    nr_allocations_by_class = nanosdk.get(
         "/allocations/by-class", request=AllocationsByClassQuery, response=AllocationsByClass
     )
 
@@ -245,7 +245,7 @@ def _client_options(
     if (access_token is None) == (refresh_token is None):
         raise ValueError("pass exactly one of access_token or refresh_token")
     auth = (
-        nanoapi.auth.Bearer(access_token)
+        nanosdk.auth.Bearer(access_token)
         if access_token is not None
         else RefreshTokenAuth(
             refresh_token or "", token_url=f"{base_url.rstrip('/')}/api/get_access_token"
@@ -275,7 +275,7 @@ def _record_rate_limits(store: dict[str, RateLimit], response: httpx.Response) -
 
 
 def _process(
-    store: dict[str, RateLimit], response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
+    store: dict[str, RateLimit], response: httpx.Response, route: nanosdk.Route[Any, Any, Any]
 ) -> httpx.Response:
     _record_rate_limits(store, response)
     if response.status_code == 204 and route.meta.get("empty_on_204"):
@@ -290,7 +290,7 @@ def _check_status(response: httpx.Response) -> None:
         body: Any = response.json()
     except ValueError:
         body = response.text
-    raise BY_STATUS.get(response.status_code, nanoapi.APIStatusError)(response, body=body)
+    raise BY_STATUS.get(response.status_code, nanosdk.APIStatusError)(response, body=body)
 
 
 # --- clients ----------------------------------------------------------------------------
@@ -329,7 +329,7 @@ class RealtimeTrains(GenericRoutes, NetworkRailQueries, RealtimeTrainsBase):
         refresh_token: str | None = None,
         api_version: str | date | None = None,
         base_url: str = DEFAULT_BASE_URL,
-        retry: nanoapi.Retry | None = nanoapi.Retry(),  # noqa: B008 (immutable)
+        retry: nanosdk.Retry | None = nanosdk.Retry(),  # noqa: B008 (immutable)
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         options = _client_options(base_url, access_token, refresh_token, api_version)
@@ -358,7 +358,7 @@ class RealtimeTrains(GenericRoutes, NetworkRailQueries, RealtimeTrainsBase):
         return self._rate_limits
 
     def _process_response(
-        self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
+        self, response: httpx.Response, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Record rate limits; turn "no services" (204) into an empty line-up."""
         return _process(self._rate_limits, response, route)
@@ -390,7 +390,7 @@ class AsyncRealtimeTrains(GenericRoutes, NetworkRailQueries, AsyncRealtimeTrains
         refresh_token: str | None = None,
         api_version: str | date | None = None,
         base_url: str = DEFAULT_BASE_URL,
-        retry: nanoapi.Retry | None = nanoapi.Retry(),  # noqa: B008 (immutable)
+        retry: nanosdk.Retry | None = nanosdk.Retry(),  # noqa: B008 (immutable)
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         options = _client_options(base_url, access_token, refresh_token, api_version)
@@ -416,7 +416,7 @@ class AsyncRealtimeTrains(GenericRoutes, NetworkRailQueries, AsyncRealtimeTrains
         return self._rate_limits
 
     async def _process_response(
-        self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
+        self, response: httpx.Response, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Record rate limits; turn "no services" (204) into an empty line-up."""
         return _process(self._rate_limits, response, route)

@@ -5,7 +5,7 @@ import httpx
 import pytest
 from pydantic import BaseModel, Field, RootModel, ValidationError
 
-import nanoapi
+import nanosdk
 
 # --- models -----------------------------------------------------------------
 
@@ -25,7 +25,7 @@ class GetUser(BaseModel):
 class CreateUser(BaseModel):
     name: str
     email: str | None = None
-    idempotency_key: Annotated[str | None, nanoapi.Header()] = None
+    idempotency_key: Annotated[str | None, nanosdk.Header()] = None
 
 
 class UpdateUser(BaseModel):
@@ -35,7 +35,7 @@ class UpdateUser(BaseModel):
 
 
 class Search(BaseModel):
-    q: Annotated[str, nanoapi.Query(alias="query")]
+    q: Annotated[str, nanosdk.Query(alias="query")]
     page_size: int = Field(default=10, alias="pageSize")
 
 
@@ -44,14 +44,14 @@ class Tags(RootModel[list[str]]):
 
 
 class ReplaceTags(BaseModel):
-    user_id: Annotated[int, nanoapi.Path()]
-    tags: Annotated[list[str], nanoapi.Body()]
+    user_id: Annotated[int, nanosdk.Path()]
+    tags: Annotated[list[str], nanosdk.Body()]
 
 
 class Upload(BaseModel):
     user_id: int
-    caption: Annotated[str, nanoapi.Form()]
-    file: Annotated[tuple[str, bytes, str], nanoapi.File()]
+    caption: Annotated[str, nanosdk.Form()]
+    file: Annotated[tuple[str, bytes, str], nanosdk.File()]
 
 
 class ApiError(BaseModel):
@@ -59,23 +59,23 @@ class ApiError(BaseModel):
     message: str
 
 
-class UserRoutes(nanoapi.Routes, prefix="/users"):
-    get_user = nanoapi.get("/{user_id}", request=GetUser, response=User)
-    list_users = nanoapi.get("", response=list[User])
-    create_user = nanoapi.post("", request=CreateUser, response=User)
-    update_user = nanoapi.patch("/{user_id}", request=UpdateUser, response=User)
-    delete_user = nanoapi.delete("/{user_id}", request=GetUser)
-    replace_tags = nanoapi.put("/{user_id}/tags", request=ReplaceTags, response=list[str])
-    upload = nanoapi.post("/{user_id}/avatar", request=Upload)
+class UserRoutes(nanosdk.Routes, prefix="/users"):
+    get_user = nanosdk.get("/{user_id}", request=GetUser, response=User)
+    list_users = nanosdk.get("", response=list[User])
+    create_user = nanosdk.post("", request=CreateUser, response=User)
+    update_user = nanosdk.patch("/{user_id}", request=UpdateUser, response=User)
+    delete_user = nanosdk.delete("/{user_id}", request=GetUser)
+    replace_tags = nanosdk.put("/{user_id}/tags", request=ReplaceTags, response=list[str])
+    upload = nanosdk.post("/{user_id}/avatar", request=Upload)
 
 
-class Api(UserRoutes, nanoapi.Client):
-    search = nanoapi.get("/search", request=Search, response=list[User])
-    set_tags = nanoapi.post("/tags", request=Tags, response=Tags)
-    health = nanoapi.get("/health", response=str, headers={"X-Probe": "1"})
+class Api(UserRoutes, nanosdk.Client):
+    search = nanosdk.get("/search", request=Search, response=list[User])
+    set_tags = nanosdk.post("/tags", request=Tags, response=Tags)
+    health = nanosdk.get("/health", response=str, headers={"X-Probe": "1"})
 
 
-class AsyncApi(UserRoutes, nanoapi.AsyncClient):
+class AsyncApi(UserRoutes, nanosdk.AsyncClient):
     pass
 
 
@@ -141,8 +141,8 @@ def test_path_values_are_url_encoded(server: Recorder) -> None:
     class ByName(BaseModel):
         name: str
 
-    route = nanoapi.get("/files/{name}", request=ByName, response=dict[str, Any])
-    client = nanoapi.Client("https://api.test", transport=httpx.MockTransport(server))
+    route = nanosdk.get("/files/{name}", request=ByName, response=dict[str, Any])
+    client = nanosdk.Client("https://api.test", transport=httpx.MockTransport(server))
     route.bind(client)(name="a b/c")
     assert server.last.url.raw_path == b"/files/a%20b%2Fc"
 
@@ -245,7 +245,7 @@ def test_bring_your_own_httpx_client(server: Recorder) -> None:
 
 def test_status_error_with_error_model(api: Api, server: Recorder) -> None:
     server.reply, server.status = {"code": "nope", "message": "missing"}, 404
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.get_user(user_id=1)
     err = info.value
     assert err.status_code == 404
@@ -260,16 +260,16 @@ def test_raw_does_not_raise_on_status(api: Api, server: Recorder) -> None:
 
 def test_response_validation_error(api: Api, server: Recorder) -> None:
     server.reply = {"id": "not-an-int"}
-    with pytest.raises(nanoapi.ResponseValidationError):
+    with pytest.raises(nanosdk.ResponseValidationError):
         api.get_user(user_id=1)
 
 
 def test_connection_and_timeout_errors(api: Api, server: Recorder) -> None:
     server.reply = httpx.ConnectError("refused")
-    with pytest.raises(nanoapi.APIConnectionError):
+    with pytest.raises(nanosdk.APIConnectionError):
         api.list_users()
     server.reply = httpx.ReadTimeout("slow")
-    with pytest.raises(nanoapi.APITimeoutError):
+    with pytest.raises(nanosdk.APITimeoutError):
         api.list_users()
 
 
@@ -301,7 +301,7 @@ def test_missing_path_field_is_reported() -> None:
     class Nothing(BaseModel):
         other: int
 
-    route = nanoapi.get("/a/{id}", request=Nothing)
+    route = nanosdk.get("/a/{id}", request=Nothing)
     with pytest.raises(TypeError, match="id"):
         route.encode(Nothing(other=1))
 
@@ -324,13 +324,13 @@ async def test_async_roundtrip(aapi: AsyncApi, server: Recorder) -> None:
         raw = await aapi.get_user.raw(user_id=1)
         assert raw.status_code == 200
         server.reply = {"id": 3}
-        route = nanoapi.get("/users/{user_id}", request=GetUser, response=dict[str, Any])
+        route = nanosdk.get("/users/{user_id}", request=GetUser, response=dict[str, Any])
         assert await route.bind(aapi)(user_id=3) == {"id": 3}
 
 
 async def test_async_status_error(aapi: AsyncApi, server: Recorder) -> None:
     server.status = 503
-    with pytest.raises(nanoapi.APIStatusError):
+    with pytest.raises(nanosdk.APIStatusError):
         await aapi.list_users()
 
 
@@ -339,27 +339,27 @@ async def test_async_status_error(aapi: AsyncApi, server: Recorder) -> None:
 
 def test_instances_only_expose_routes_and_lifecycle() -> None:
     public = {name for name in dir(Api) if not name.startswith("_")}
-    routes = {name for name, v in vars(Api).items() if isinstance(v, nanoapi.Route)}
-    routes |= {name for name, v in vars(UserRoutes).items() if isinstance(v, nanoapi.Route)}
+    routes = {name for name, v in vars(Api).items() if isinstance(v, nanosdk.Route)}
+    routes |= {name for name, v in vars(UserRoutes).items() if isinstance(v, nanosdk.Route)}
     assert public - routes == {"close", "with_options"}
 
 
 @pytest.mark.parametrize("name", ["close", "with_options", "_send", "_prepare_request"])
 def test_routes_cannot_shadow_the_client(name: str) -> None:
     with pytest.raises(TypeError, match=f"can't be called {name!r}"):
-        type("Bad", (nanoapi.Client,), {name: nanoapi.get("/x")})
-    group = type("Group", (nanoapi.Routes,), {name: nanoapi.get("/x")})  # fine on its own
+        type("Bad", (nanosdk.Client,), {name: nanosdk.get("/x")})
+    group = type("Group", (nanosdk.Routes,), {name: nanosdk.get("/x")})  # fine on its own
     with pytest.raises(TypeError, match="can't be called"):
-        type("Bad", (group, nanoapi.AsyncClient), {})
+        type("Bad", (group, nanosdk.AsyncClient), {})
 
 
 def test_routes_named_like_old_client_methods_just_work(server: Recorder) -> None:
     """`send` and `pages` used to shadow client internals and break every other route."""
 
-    class Messages(nanoapi.Client):
-        send = nanoapi.post("/messages", response=dict[str, Any])
-        pages = nanoapi.get("/pages", response=dict[str, Any])
-        inbox = nanoapi.get("/inbox", response=dict[str, Any])
+    class Messages(nanosdk.Client):
+        send = nanosdk.post("/messages", response=dict[str, Any])
+        pages = nanosdk.get("/pages", response=dict[str, Any])
+        inbox = nanosdk.get("/inbox", response=dict[str, Any])
 
     api = Messages("https://api.test", transport=httpx.MockTransport(server))
     assert api.send() == api.pages() == api.inbox() == {"id": 1, "name": "ada"}
@@ -367,4 +367,4 @@ def test_routes_named_like_old_client_methods_just_work(server: Recorder) -> Non
 
 
 def test_http_client_escape_hatch(api: Api) -> None:
-    assert isinstance(nanoapi.http_client(api), httpx.Client)
+    assert isinstance(nanosdk.http_client(api), httpx.Client)

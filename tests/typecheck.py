@@ -7,7 +7,7 @@ import httpx
 import polars as pl
 from pydantic import BaseModel
 
-import nanoapi
+import nanosdk
 
 
 class User(BaseModel):
@@ -22,22 +22,22 @@ class GetUser(BaseModel):
 
 class CreateUser(BaseModel):
     name: str
-    trace_id: Annotated[str | None, nanoapi.Header()] = None
+    trace_id: Annotated[str | None, nanosdk.Header()] = None
 
 
-class UserRoutes(nanoapi.Routes, prefix="/users"):
-    get = nanoapi.get("/{user_id}", request=GetUser, response=User)
-    list = nanoapi.get("", response=list[User])
-    create = nanoapi.post("", request=CreateUser, response=User)
-    delete = nanoapi.delete("/{user_id}", request=GetUser)
-    raw = nanoapi.get("/raw", response=httpx.Response)
+class UserRoutes(nanosdk.Routes, prefix="/users"):
+    get = nanosdk.get("/{user_id}", request=GetUser, response=User)
+    list = nanosdk.get("", response=list[User])
+    create = nanosdk.post("", request=CreateUser, response=User)
+    delete = nanosdk.delete("/{user_id}", request=GetUser)
+    raw = nanosdk.get("/raw", response=httpx.Response)
 
 
-class Api(UserRoutes, nanoapi.Client):
-    ping = nanoapi.get("/ping", response=str)
+class Api(UserRoutes, nanosdk.Client):
+    ping = nanosdk.get("/ping", response=str)
 
 
-class AsyncApi(UserRoutes, nanoapi.AsyncClient):
+class AsyncApi(UserRoutes, nanosdk.AsyncClient):
     pass
 
 
@@ -54,11 +54,11 @@ def sync_usage(api: Api) -> None:
     assert_type(api.with_options(headers={"x": "y"}), Api)
 
     # ad-hoc: routes as plain objects, no subclass needed
-    standalone = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
-    client = nanoapi.Client("https://example.com")
+    standalone = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
+    client = nanosdk.Client("https://example.com")
     assert_type(standalone.bind(client)(user_id=2), User)
     assert_type(standalone.bind(client).send(GetUser(user_id=2)), User)
-    assert_type(nanoapi.http_client(client), httpx.Client)
+    assert_type(nanosdk.http_client(client), httpx.Client)
 
     # Errors the type checker must catch. ty models pydantic's lax coercion and
     # discarded extras, so it (rightly) accepts `user_id="nope"` and `bogus=1`.
@@ -76,13 +76,13 @@ async def async_usage(api: AsyncApi) -> None:
     assert_type(await api.delete(user_id=1), None)
     assert_type(await api.get.raw(user_id=1), httpx.Response)
 
-    standalone = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+    standalone = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
     assert_type(await standalone.bind(api)(user_id=2), User)
-    assert_type(nanoapi.http_client(api), httpx.AsyncClient)
+    assert_type(nanosdk.http_client(api), httpx.AsyncClient)
 
 
 def class_access() -> None:
-    assert_type(Api.ping, "nanoapi.Route[[], None, str]")
+    assert_type(Api.ping, "nanosdk.Route[[], None, str]")
 
 
 # --- map / pagination ---------------------------------------------------------
@@ -102,28 +102,28 @@ class ListPosts(BaseModel):
     limit: int = 10
 
 
-class Posts(nanoapi.Routes, prefix="/posts"):
-    page = nanoapi.get("", request=ListPosts, response=PostPage).paginate(
-        nanoapi.Cursor("next_cursor"), items=lambda p: p.data
+class Posts(nanosdk.Routes, prefix="/posts"):
+    page = nanosdk.get("", request=ListPosts, response=PostPage).paginate(
+        nanosdk.Cursor("next_cursor"), items=lambda p: p.data
     )
-    flat = nanoapi.get("/flat", request=ListPosts, response=list[Post]).paginate(nanoapi.Offset())
-    linked = nanoapi.get("/linked", response=list[Post]).paginate(nanoapi.LinkHeader())
-    count = nanoapi.get("", response=list[Post]).map(len)
-    frame = nanoapi.get("", response=list[Post]).map(nanoapi.frames.polars)
+    flat = nanosdk.get("/flat", request=ListPosts, response=list[Post]).paginate(nanosdk.Offset())
+    linked = nanosdk.get("/linked", response=list[Post]).paginate(nanosdk.LinkHeader())
+    count = nanosdk.get("", response=list[Post]).map(len)
+    frame = nanosdk.get("", response=list[Post]).map(nanosdk.frames.polars)
 
 
-class PagedApi(Posts, nanoapi.Client):
+class PagedApi(Posts, nanosdk.Client):
     pass
 
 
-class AsyncPagedApi(Posts, nanoapi.AsyncClient):
+class AsyncPagedApi(Posts, nanosdk.AsyncClient):
     pass
 
 
 def paged_usage(api: PagedApi) -> None:
     assert_type(api.page(limit=5), PostPage)
     assert_type(api.page.iter(limit=5), Iterator[Post])
-    assert_type(api.page.pages(), Iterator[nanoapi.Page[ListPosts, PostPage, Post]])
+    assert_type(api.page.pages(), Iterator[nanosdk.Page[ListPosts, PostPage, Post]])
     assert_type(api.flat.iter(), Iterator[Post])
     assert_type(api.linked.iter(), Iterator[Post])
     assert_type(api.count(), int)

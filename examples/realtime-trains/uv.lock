@@ -348,7 +348,7 @@ wheels = [
 ]
 
 [[package]]
-name = "nanoapi"
+name = "nanosdk"
 version = "0.1.0"
 source = { editable = "../../" }
 dependencies = [
@@ -686,7 +686,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
-    { name = "nanoapi" },
+    { name = "nanosdk" },
     { name = "pydantic" },
 ]
 
@@ -697,7 +697,7 @@ polars = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "nanoapi", extra = ["codegen"] },
+    { name = "nanosdk", extra = ["codegen"] },
     { name = "polars" },
     { name = "pyright" },
     { name = "pytest" },
@@ -711,7 +711,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "nanoapi", editable = "../../" },
+    { name = "nanosdk", editable = "../../" },
     { name = "polars", marker = "extra == 'polars'", specifier = ">=2.0.0" },
     { name = "pydantic", specifier = ">=2.14.1" },
 ]
@@ -719,7 +719,7 @@ provides-extras = ["polars"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "nanoapi", extras = ["codegen"], editable = "../../" },
+    { name = "nanosdk", extras = ["codegen"], editable = "../../" },
     { name = "polars", specifier = ">=2.0.0" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },

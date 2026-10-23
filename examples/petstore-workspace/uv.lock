@@ -19,7 +19,7 @@ members = [
 [manifest.dependency-groups]
 dev = [
     { name = "mypy", specifier = ">=2.4.0" },
-    { name = "nanoapi", extras = ["codegen"], editable = "../../" },
+    { name = "nanosdk", extras = ["codegen"], editable = "../../" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
@@ -563,7 +563,7 @@ wheels = [
 ]
 
 [[package]]
-name = "nanoapi"
+name = "nanosdk"
 version = "0.1.0"
 source = { editable = "../../" }
 dependencies = [
@@ -642,13 +642,13 @@ name = "petstore"
 version = "0.1.0"
 source = { editable = "packages/petstore" }
 dependencies = [
-    { name = "nanoapi" },
+    { name = "nanosdk" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "nanoapi", editable = "../../" },
+    { name = "nanosdk", editable = "../../" },
     { name = "pydantic", specifier = ">=2.14.1" },
 ]
 

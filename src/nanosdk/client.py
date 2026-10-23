@@ -1,8 +1,8 @@
 """The clients, and the bound routes you get when you access a route on one.
 
 ```python
-class GitHub(nanoapi.Client):
-    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+class GitHub(nanosdk.Client):
+    get_user = nanosdk.get("/users/{username}", request=GetUser, response=User)
 
 with GitHub("https://api.github.com") as gh:
     user = gh.get_user(username="octocat")      # gh.get_user is a BoundRoute
@@ -52,7 +52,7 @@ type TimeoutTypes = float | httpx.Timeout | None
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 """30 seconds per read/write/pool wait, 10 to connect."""
 
-LOGGER = logging.getLogger("nanoapi")
+LOGGER = logging.getLogger("nanosdk")
 """The default logger for clients; pass `logger=` to a client to use another."""
 
 
@@ -80,7 +80,7 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
             for name, value in vars(klass).items():
                 if name in reserved and isinstance(value, Route | PaginatedRoute):
                     raise TypeError(
-                        f"{cls.__name__}: a route can't be called {name!r}, nanoapi uses "
+                        f"{cls.__name__}: a route can't be called {name!r}, nanosdk uses "
                         f"that name on the client; pick another (e.g. {name + '_'!r})"
                     )
 
@@ -181,7 +181,7 @@ class _BaseClient[HttpT: (httpx.Client, httpx.AsyncClient)](Routes):
 
         Called after `_process_response` and before decoding, for every call except
         `.raw()`. The default raises
-        [`APIStatusError`][nanoapi.APIStatusError] on a 4xx or 5xx status, with the body
+        [`APIStatusError`][nanosdk.APIStatusError] on a 4xx or 5xx status, with the body
         parsed by the client's `error_model` when one is set.
 
         Args:
@@ -354,23 +354,23 @@ class Client(_BaseClient[httpx.Client]):
     """Synchronous API client, built on `httpx.Client`.
 
     Subclass it and declare routes as class attributes; on an instance each route
-    becomes a [`BoundRoute`][nanoapi.BoundRoute] method:
+    becomes a [`BoundRoute`][nanosdk.BoundRoute] method:
 
     ```python
-    class GitHub(nanoapi.Client):
-        get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+    class GitHub(nanosdk.Client):
+        get_user = nanosdk.get("/users/{username}", request=GetUser, response=User)
 
     with GitHub("https://api.github.com") as gh:
         user = gh.get_user(username="octocat")  # -> User
     ```
 
     Apart from your routes, an instance only exposes
-    [`with_options`][nanoapi.Client.with_options] and [`close`][nanoapi.Client.close] (or
+    [`with_options`][nanosdk.Client.with_options] and [`close`][nanosdk.Client.close] (or
     use it as a context manager). Customise behaviour by overriding the underscored
-    hooks [`_prepare_request`][nanoapi.Client._prepare_request],
-    [`_process_response`][nanoapi.Client._process_response],
-    [`_raise_for_status`][nanoapi.Client._raise_for_status] and
-    [`_retry_policy`][nanoapi.Client._retry_policy]. A route named like one of the
+    hooks [`_prepare_request`][nanosdk.Client._prepare_request],
+    [`_process_response`][nanosdk.Client._process_response],
+    [`_raise_for_status`][nanosdk.Client._raise_for_status] and
+    [`_retry_policy`][nanosdk.Client._retry_policy]. A route named like one of the
     client's own attributes (`close`, `with_options`, a hook, ...) raises `TypeError`
     when the class is defined.
 
@@ -378,12 +378,12 @@ class Client(_BaseClient[httpx.Client]):
         base_url: Prefix for every route path, such as `"https://api.example.com/v2"`.
         headers: Headers sent with every request.
         timeout: Seconds, an `httpx.Timeout`, or `None` to wait forever.
-        auth: Any `httpx.Auth` (see [`nanoapi.auth`][nanoapi.auth]) or a
+        auth: Any `httpx.Auth` (see [`nanosdk.auth`][nanosdk.auth]) or a
             `(username, password)` tuple for basic auth.
         error_model: A type to parse 4xx/5xx bodies into, exposed as
-            [`APIStatusError.error`][nanoapi.APIStatusError].
+            [`APIStatusError.error`][nanosdk.APIStatusError].
         retry: Retry policy for transient failures; `None` (the default) never retries.
-        logger: Where to log requests, responses and retries; defaults to the `nanoapi`
+        logger: Where to log requests, responses and retries; defaults to the `nanosdk`
             logger. SDKs can pass their own, such as `logging.getLogger("my_sdk")`.
         http_client: Use this `httpx.Client` instead of creating one. It isn't closed
             for you, and can't be combined with `base_url`, `headers`, `auth` or
@@ -542,13 +542,13 @@ class Client(_BaseClient[httpx.Client]):
 class AsyncClient(_BaseClient[httpx.AsyncClient]):
     """Asynchronous API client, built on `httpx.AsyncClient`.
 
-    The async twin of [`Client`][nanoapi.Client], with the same constructor arguments
+    The async twin of [`Client`][nanosdk.Client], with the same constructor arguments
     (`http_client` takes an `httpx.AsyncClient`). Route calls return awaitables,
     paginated routes give async iterators, the `_prepare_request` /
     `_process_response` hooks are `async def`, and `aclose` replaces `close`.
 
     ```python
-    class AsyncGitHub(Users, Repos, nanoapi.AsyncClient): ...
+    class AsyncGitHub(Users, Repos, nanosdk.AsyncClient): ...
 
     async with AsyncGitHub("https://api.github.com") as gh:
         user = await gh.get_user(username="octocat")
@@ -562,7 +562,7 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
         auth: Any `httpx.Auth` or a `(username, password)` tuple.
         error_model: A type to parse 4xx/5xx bodies into.
         retry: Retry policy for transient failures; `None` never retries.
-        logger: Where to log; defaults to the `nanoapi` logger.
+        logger: Where to log; defaults to the `nanosdk` logger.
         http_client: Use this `httpx.AsyncClient` instead of creating one.
         **httpx_kwargs: Any other `httpx.AsyncClient` argument.
 
@@ -605,7 +605,7 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     ) -> httpx.Request:
         """Hook called on every outgoing request, including each retry.
 
-        The async version of [`Client._prepare_request`][nanoapi.Client._prepare_request].
+        The async version of [`Client._prepare_request`][nanosdk.Client._prepare_request].
 
         Args:
             request: The request about to be sent.
@@ -621,7 +621,7 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
     ) -> httpx.Response:
         """Hook called on every final response, before the status check and decoding.
 
-        The async version of [`Client._process_response`][nanoapi.Client._process_response].
+        The async version of [`Client._process_response`][nanosdk.Client._process_response].
 
         Args:
             response: The response.
@@ -709,7 +709,7 @@ class AsyncClient(_BaseClient[httpx.AsyncClient]):
 
 
 class BoundRoute[**P, ReqT, RespT]:
-    """A route attached to a [`Client`][nanoapi.Client]; what `api.some_route` gives you.
+    """A route attached to a [`Client`][nanosdk.Client]; what `api.some_route` gives you.
 
     Call it with the request model's arguments to send the request and get the decoded
     response. The other methods are variations for when you need more control.
@@ -722,7 +722,7 @@ class BoundRoute[**P, ReqT, RespT]:
     ```
 
     Attributes:
-        route: The underlying [`Route`][nanoapi.Route].
+        route: The underlying [`Route`][nanosdk.Route].
         client: The client it's bound to.
     """
 
@@ -782,9 +782,9 @@ class BoundRoute[**P, ReqT, RespT]:
 
 
 class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
-    """A paginated route attached to a [`Client`][nanoapi.Client].
+    """A paginated route attached to a [`Client`][nanosdk.Client].
 
-    Calling it fetches just the first page, like any [`BoundRoute`][nanoapi.BoundRoute];
+    Calling it fetches just the first page, like any [`BoundRoute`][nanosdk.BoundRoute];
     `iter` and `pages` walk all of them.
 
     ```python
@@ -794,7 +794,7 @@ class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
     ```
 
     Attributes:
-        paginated: The underlying [`PaginatedRoute`][nanoapi.PaginatedRoute].
+        paginated: The underlying [`PaginatedRoute`][nanosdk.PaginatedRoute].
     """
 
     __slots__ = ("paginated",)
@@ -820,19 +820,19 @@ class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
         Arguments are validated immediately; pages are fetched as you iterate.
 
         Returns:
-            A lazy iterator over [`Page`][nanoapi.Page] objects.
+            A lazy iterator over [`Page`][nanosdk.Page] objects.
         """
         return self.client._iter_pages(self.paginated, self.route.build_model(*args, **kwargs))
 
 
 class AsyncBoundRoute[**P, ReqT, RespT]:
-    """A route attached to an [`AsyncClient`][nanoapi.AsyncClient].
+    """A route attached to an [`AsyncClient`][nanosdk.AsyncClient].
 
-    The async twin of [`BoundRoute`][nanoapi.BoundRoute]: calling it, `send` and `raw`
+    The async twin of [`BoundRoute`][nanosdk.BoundRoute]: calling it, `send` and `raw`
     return awaitables.
 
     Attributes:
-        route: The underlying [`Route`][nanoapi.Route].
+        route: The underlying [`Route`][nanosdk.Route].
         client: The client it's bound to.
     """
 
@@ -883,7 +883,7 @@ class AsyncBoundRoute[**P, ReqT, RespT]:
 
 
 class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT, RespT]):
-    """A paginated route attached to an [`AsyncClient`][nanoapi.AsyncClient].
+    """A paginated route attached to an [`AsyncClient`][nanosdk.AsyncClient].
 
     ```python
     async for post in api.list_posts.iter(limit=50):
@@ -891,7 +891,7 @@ class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT,
     ```
 
     Attributes:
-        paginated: The underlying [`PaginatedRoute`][nanoapi.PaginatedRoute].
+        paginated: The underlying [`PaginatedRoute`][nanosdk.PaginatedRoute].
     """
 
     __slots__ = ("paginated",)
@@ -914,7 +914,7 @@ class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT,
         """Iterate over every page with `async for`.
 
         Returns:
-            A lazy async iterator over [`Page`][nanoapi.Page] objects.
+            A lazy async iterator over [`Page`][nanosdk.Page] objects.
         """
         return self.client._iter_pages(self.paginated, self.route.build_model(*args, **kwargs))
 
@@ -924,17 +924,17 @@ def http_client(client: Client) -> httpx.Client: ...
 @overload
 def http_client(client: AsyncClient) -> httpx.AsyncClient: ...
 def http_client(client: Client | AsyncClient) -> httpx.Client | httpx.AsyncClient:
-    """The httpx client underneath a nanoapi client, for anything nanoapi doesn't wrap.
+    """The httpx client underneath a nanosdk client, for anything nanosdk doesn't wrap.
 
     A function rather than an attribute, so it can't collide with a route name.
 
     Example:
         ```python
-        nanoapi.http_client(api).cookies.set("session", "...")
+        nanosdk.http_client(api).cookies.set("session", "...")
         ```
 
     Args:
-        client: A nanoapi client.
+        client: A nanosdk client.
 
     Returns:
         Its `httpx.Client` (or `httpx.AsyncClient`).

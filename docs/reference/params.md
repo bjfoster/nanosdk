@@ -1,24 +1,24 @@
-::: nanoapi.params
+::: nanosdk.params
     options:
       members: false
       show_root_heading: true
       show_root_full_path: true
       heading_level: 1
 
-::: nanoapi.Path
+::: nanosdk.Path
 
-::: nanoapi.Query
+::: nanosdk.Query
 
-::: nanoapi.Header
+::: nanosdk.Header
 
-::: nanoapi.Json
+::: nanosdk.Json
 
-::: nanoapi.Body
+::: nanosdk.Body
 
-::: nanoapi.Form
+::: nanosdk.Form
 
-::: nanoapi.File
+::: nanosdk.File
 
-::: nanoapi.Param
+::: nanosdk.Param
 
-::: nanoapi.Location
+::: nanosdk.Location

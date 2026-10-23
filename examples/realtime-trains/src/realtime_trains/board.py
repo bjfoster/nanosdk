@@ -7,7 +7,7 @@ It's also the shape you want for a DataFrame:
 
 ```python
 rows = rtt.board(code="CLJ")                      # list[BoardRow]
-df = nanoapi.frames.polars(rows)                  # needs realtime-trains[polars]
+df = nanosdk.frames.polars(rows)                  # needs realtime-trains[polars]
 ```
 """
 

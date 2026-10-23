@@ -11,8 +11,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import ApiKey, Bearer, OAuth2ClientCredentials
+import nanosdk
+from nanosdk.auth import ApiKey, Bearer, OAuth2ClientCredentials
 
 # --- fake identity provider + API ---------------------------------------------
 
@@ -75,12 +75,12 @@ class WhoAmI(BaseModel):
     caller: str
 
 
-class Api(nanoapi.Client):
-    whoami = nanoapi.get("/me", response=WhoAmI)
+class Api(nanosdk.Client):
+    whoami = nanosdk.get("/me", response=WhoAmI)
 
 
-class AsyncApi(nanoapi.AsyncClient):
-    whoami = nanoapi.get("/me", response=WhoAmI)
+class AsyncApi(nanosdk.AsyncClient):
+    whoami = nanosdk.get("/me", response=WhoAmI)
 
 
 # --- a custom httpx.Auth: anything httpx supports works -----------------------------
@@ -137,7 +137,7 @@ def main() -> None:
     bad = client(OAuth2ClientCredentials("https://auth.test/oauth/token", "my-app", "wrong"))
     try:
         bad.whoami()
-    except nanoapi.APIStatusError as exc:
+    except nanosdk.APIStatusError as exc:
         print(f"\nbad secret: {exc.status_code} from {exc.request.url} -> {exc.body}")
 
     # The same auth objects drive the async client.

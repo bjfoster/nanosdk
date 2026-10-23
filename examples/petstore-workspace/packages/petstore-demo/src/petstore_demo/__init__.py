@@ -6,7 +6,7 @@ Run:  uv run petstore-demo          (from the workspace root; talks to the live 
 import asyncio
 import random
 
-import nanoapi
+import nanosdk
 from petstore import (
     ApiResponse,
     AsyncPetstore,
@@ -45,7 +45,7 @@ def main() -> None:
         try:
             available = api.find_by_status(status="available")
             print(f"{len(available)} pets currently available")
-        except nanoapi.ResponseValidationError as exc:
+        except nanosdk.ResponseValidationError as exc:
             # The demo server is shared: other people's pets may break the spec (say, no
             # photoUrls, which the spec requires). The models enforce the spec.
             print(f"available pets: {exc.error.error_count()} records break the spec")
@@ -53,7 +53,7 @@ def main() -> None:
         try:
             counts = api.inventory()  # needs the api_key header, sent by ApiKey auth
             print("inventory:", {k: v for k, v in sorted(counts.items()) if k in PetStatus})
-        except nanoapi.APIStatusError as exc:
+        except nanosdk.APIStatusError as exc:
             # error_model=ApiResponse (generated) parses error bodies into exc.error
             error: ApiResponse | None = exc.error
             print(
@@ -66,7 +66,7 @@ def main() -> None:
         print("deleted ", api.delete_pet(pet_id=pet_id) or "ok")
         try:
             api.get_pet(pet_id=pet_id)
-        except nanoapi.APIStatusError as exc:
+        except nanosdk.APIStatusError as exc:
             print(f"gone     {exc.status_code}: {exc.body}")
 
     asyncio.run(fetch_some())
@@ -77,7 +77,7 @@ async def fetch_some() -> None:
     async with AsyncPetstore() as api:
         try:
             pets = await api.find_by_status(status="sold")
-        except nanoapi.ResponseValidationError:
+        except nanosdk.ResponseValidationError:
             print("async    skipped: the shared server's data breaks the spec right now")
             return
         ids = [pet.id for pet in pets[:5] if pet.id is not None]

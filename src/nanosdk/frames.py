@@ -1,18 +1,18 @@
 """Turn decoded responses into DataFrames.
 
-Use the converters as a route [`map`][nanoapi.Route.map], so the route returns a
+Use the converters as a route [`map`][nanosdk.Route.map], so the route returns a
 DataFrame, or call them on anything iterable of models or dicts, including a
 paginated route's `.iter()`:
 
 ```python
-class Api(nanoapi.Client):
-    posts = nanoapi.get("/posts", response=list[Post]).map(nanoapi.frames.polars)
+class Api(nanosdk.Client):
+    posts = nanosdk.get("/posts", response=list[Post]).map(nanosdk.frames.polars)
 
 df = api.posts()                                    # pl.DataFrame
-df = nanoapi.frames.pandas(api.list_posts.iter())   # every page, one pd.DataFrame
+df = nanosdk.frames.pandas(api.list_posts.iter())   # every page, one pd.DataFrame
 ```
 
-polars and pandas are optional: install `nanoapi[polars]` or `nanoapi[pandas]`.
+polars and pandas are optional: install `nanosdk[polars]` or `nanosdk[pandas]`.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def records(data: Rows) -> list[dict[str, Any]]:
 def polars(data: Rows) -> pl.DataFrame:
     """Build a polars DataFrame, one row per model or mapping.
 
-    Nested models become struct columns. Needs the `nanoapi[polars]` extra.
+    Nested models become struct columns. Needs the `nanosdk[polars]` extra.
 
     Args:
         data: A model, a mapping, or an iterable of them.
@@ -78,7 +78,7 @@ def polars(data: Rows) -> pl.DataFrame:
 def pandas(data: Rows) -> pd.DataFrame:
     """Build a pandas DataFrame, one row per model or mapping.
 
-    Nested models become dict-valued columns. Needs the `nanoapi[pandas]` extra.
+    Nested models become dict-valued columns. Needs the `nanosdk[pandas]` extra.
 
     Args:
         data: A model, a mapping, or an iterable of them.

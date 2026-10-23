@@ -24,13 +24,13 @@ from typing import Any
 
 import pytest
 
-from nanoapi.auth import Bearer
-from nanoapi.codegen import generate
+from nanosdk.auth import Bearer
+from nanosdk.codegen import generate
 
 pytestmark = pytest.mark.e2e
 
 CACHE = Path(__file__).parent / ".cache"
-USER_AGENT = "nanoapi-e2e (https://github.com/; nanoapi test suite)"
+USER_AGENT = "nanosdk-e2e (https://github.com/; nanosdk test suite)"
 
 
 @dataclass(frozen=True)

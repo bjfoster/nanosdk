@@ -3,7 +3,7 @@ members = ["packages/*"]
 
 [dependency-groups]
 dev = [
-    "nanoapi[codegen]",
+    "nanosdk[codegen]",
     "mypy>=2.4.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
@@ -13,8 +13,8 @@ dev = [
 ]
 
 [tool.ruff]
-extend = "../../pyproject.toml"  # same style as nanoapi itself
-# Generated code (`nanoapi generate`) is formatted by the generator; don't lint or restyle it.
+extend = "../../pyproject.toml"  # same style as nanosdk itself
+# Generated code (`nanosdk generate`) is formatted by the generator; don't lint or restyle it.
 extend-exclude = ["packages/petstore/src/petstore/_generated"]
 
 [tool.ruff.lint.isort]
@@ -25,7 +25,7 @@ asyncio_mode = "auto"
 testpaths = ["packages"]
 
 [tool.uv.sources]
-nanoapi = { path = "../..", editable = true }
+nanosdk = { path = "../..", editable = true }
 
 [tool.pyright]
 include = ["packages"]

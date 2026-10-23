@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "nanoapi"
+name = "nanosdk"
 version = "0.1.0"
 description = "A tiny, fully typed HTTP client core: declare routes + pydantic models, get a typed sync/async client on httpx."
 readme = "README.md"
@@ -28,7 +28,7 @@ pandas = ["pandas>=2"]
 codegen = ["datamodel-code-generator[ruff]>=0.86", "pyyaml>=6"]
 
 [project.scripts]
-nanoapi = "nanoapi.codegen.cli:main"
+nanosdk = "nanosdk.codegen.cli:main"
 
 [dependency-groups]
 dev = [
@@ -53,7 +53,7 @@ docs = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/nanoapi"]
+packages = ["src/nanosdk"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -101,7 +101,7 @@ convention = "google"
 "examples/**" = ["D"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["nanoapi"]
+known-first-party = ["nanosdk"]
 
 [tool.pyright]
 include = ["src", "tests/typecheck.py", "examples"]

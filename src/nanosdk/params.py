@@ -112,7 +112,7 @@ class Form(Param):
     """Sent as a form field.
 
     The body is `application/x-www-form-urlencoded`, or `multipart/form-data` when the
-    model also has [`File`][nanoapi.File] fields.
+    model also has [`File`][nanosdk.File] fields.
     """
 
     location: Location = Location.FORM

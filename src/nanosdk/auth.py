@@ -1,12 +1,12 @@
 """Ready-made `httpx.Auth` implementations. Pass one as `auth=` to any client.
 
 ```python
-from nanoapi.auth import Bearer
+from nanosdk.auth import Bearer
 
 api = Api("https://api.example.com", auth=Bearer(token))
 ```
 
-They work with both [`Client`][nanoapi.Client] and [`AsyncClient`][nanoapi.AsyncClient]:
+They work with both [`Client`][nanosdk.Client] and [`AsyncClient`][nanosdk.AsyncClient]:
 httpx drives the same flow either way. Any other `httpx.Auth` (or a `(user, password)`
 tuple for basic auth) works as `auth=` too.
 """
@@ -24,7 +24,7 @@ from .errors import APIStatusError
 
 __all__ = ["ApiKey", "Bearer", "OAuth2ClientCredentials"]
 
-logger = logging.getLogger("nanoapi.auth")
+logger = logging.getLogger("nanosdk.auth")
 
 
 class Bearer(httpx.Auth):
@@ -62,7 +62,7 @@ class ApiKey(httpx.Auth):
 
     Prefer a header when the API allows it: httpx logs request URLs (including the
     query string) at INFO on the `httpx` logger, so a query-string key can end up in
-    your logs. nanoapi's own logs never include it.
+    your logs. nanosdk's own logs never include it.
 
     Args:
         name: The header or query-parameter name.
@@ -92,7 +92,7 @@ class OAuth2ClientCredentials(httpx.Auth):
     Fetches a token on first use and caches it until `leeway` seconds before it
     expires. If the API answers 401 anyway (a revoked token, say), it fetches a new
     token and retries the request once. A failed token request raises
-    [`APIStatusError`][nanoapi.APIStatusError].
+    [`APIStatusError`][nanosdk.APIStatusError].
 
     Example:
         ```python

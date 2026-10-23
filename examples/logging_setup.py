@@ -1,4 +1,4 @@
-"""Seeing what nanoapi does: plain-text and JSON logging, offline.
+"""Seeing what nanosdk does: plain-text and JSON logging, offline.
 
 Run:  python examples/logging_setup.py
 """
@@ -10,8 +10,8 @@ import sys
 import httpx
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import Bearer
+import nanosdk
+from nanosdk.auth import Bearer
 
 # --- a flaky fake API: 503 on the first call, then fine ---------------------------
 
@@ -35,8 +35,8 @@ class Page(BaseModel):
     page: int = 1
 
 
-class Api(nanoapi.Client):
-    items = nanoapi.get("/items", request=Page, response=list[Item]).paginate(nanoapi.PageNumber())
+class Api(nanosdk.Client):
+    items = nanosdk.get("/items", request=Page, response=list[Item]).paginate(nanosdk.PageNumber())
 
 
 # --- JSON lines, using the structured fields on each record ---------------------------
@@ -56,7 +56,7 @@ def main() -> None:
         return Api(
             "https://api.test",
             auth=Bearer("never-logged"),
-            retry=nanoapi.Retry(backoff=0.05),
+            retry=nanosdk.Retry(backoff=0.05),
             logger=logger,
             transport=httpx.MockTransport(fake_api),
         )
@@ -65,8 +65,8 @@ def main() -> None:
     logging.basicConfig(
         level=logging.WARNING, stream=sys.stdout, format="%(levelname)-7s %(name)s: %(message)s"
     )
-    logging.getLogger("nanoapi").setLevel(logging.DEBUG)
-    print("--- plain text, nanoapi at DEBUG")
+    logging.getLogger("nanosdk").setLevel(logging.DEBUG)
+    print("--- plain text, nanosdk at DEBUG")
     list(make_api().items.iter())
 
     # 2. JSON lines, under an SDK's own logger name.

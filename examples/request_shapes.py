@@ -15,8 +15,8 @@ import httpx
 from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from pydantic.alias_generators import to_camel
 
-import nanoapi
-from nanoapi import Body, File, Form, Header, Json, Path, Query
+import nanosdk
+from nanosdk import Body, File, Form, Header, Json, Path, Query
 
 
 class Status(StrEnum):
@@ -105,24 +105,24 @@ class Issue(BaseModel):
 # --- routes -------------------------------------------------------------------
 
 
-class Tracker(nanoapi.Client):
-    search = nanoapi.get("/repos/{repo}/issues", request=SearchIssues, response=list[Issue])
-    create = nanoapi.post("/repos/{repo}/issues", request=CreateIssue, response=Issue)
-    edit = nanoapi.patch("/repos/{repo}/issues/{number}", request=EditIssue, response=Issue)
-    replace_labels = nanoapi.put(
+class Tracker(nanosdk.Client):
+    search = nanosdk.get("/repos/{repo}/issues", request=SearchIssues, response=list[Issue])
+    create = nanosdk.post("/repos/{repo}/issues", request=CreateIssue, response=Issue)
+    edit = nanosdk.patch("/repos/{repo}/issues/{number}", request=EditIssue, response=Issue)
+    replace_labels = nanosdk.put(
         "/repos/{repo}/issues/{number}/labels", request=ReplaceLabels, response=list[str]
     )
-    set_default_labels = nanoapi.put("/labels/default", request=Labels, response=Labels)
-    comment = nanoapi.post("/repos/{repo}/issues/{number}/comments", request=Comment)
-    attach = nanoapi.post("/repos/{repo}/attachments", request=UploadAttachment)
-    login = nanoapi.post("/session", request=Login, response=dict[str, Any])
+    set_default_labels = nanosdk.put("/labels/default", request=Labels, response=Labels)
+    comment = nanosdk.post("/repos/{repo}/issues/{number}/comments", request=Comment)
+    attach = nanosdk.post("/repos/{repo}/attachments", request=UploadAttachment)
+    login = nanosdk.post("/session", request=Login, response=dict[str, Any])
 
     # Response types other than models:
-    readme = nanoapi.get("/readme", response=str)  # response.text
-    avatar = nanoapi.get("/avatar.png", response=bytes)  # response.content
-    raw = nanoapi.get("/anything", response=httpx.Response)  # the response itself
-    ping = nanoapi.head("/", headers={"X-Probe": "1"})  # None; static route headers
-    propfind = nanoapi.route("PROPFIND")("/dav", response=str)  # any method
+    readme = nanosdk.get("/readme", response=str)  # response.text
+    avatar = nanosdk.get("/avatar.png", response=bytes)  # response.content
+    raw = nanosdk.get("/anything", response=httpx.Response)  # the response itself
+    ping = nanosdk.head("/", headers={"X-Probe": "1"})  # None; static route headers
+    propfind = nanosdk.route("PROPFIND")("/dav", response=str)  # any method
 
 
 def show(request: httpx.Request) -> None:
@@ -157,7 +157,7 @@ def main() -> None:
 
     show(
         api.search.build_request(
-            repo="nanoapi",
+            repo="nanosdk",
             labels=["bug", "p1"],
             since=date(2026, 1, 1),
             page_size=50,
@@ -165,14 +165,14 @@ def main() -> None:
         )
     )
     due = datetime(2026, 11, 1, tzinfo=UTC)
-    show(api.create.build_request(repo="nanoapi", title="Crash", assignee_ids=[7], due_at=due))
-    show(api.create.build_request(repo="nanoapi", title="Try it", dry_run=True))
-    show(api.edit.build_request(repo="nanoapi", number=12, milestone=None))  # sends only that
-    show(api.replace_labels.build_request(repo="nanoapi", number=12, labels=["bug", "ui"]))
+    show(api.create.build_request(repo="nanosdk", title="Crash", assignee_ids=[7], due_at=due))
+    show(api.create.build_request(repo="nanosdk", title="Try it", dry_run=True))
+    show(api.edit.build_request(repo="nanosdk", number=12, milestone=None))  # sends only that
+    show(api.replace_labels.build_request(repo="nanosdk", number=12, labels=["bug", "ui"]))
     show(api.set_default_labels.build_request(["triage"]))
-    show(api.comment.build_request(repo="nanoapi", number=12, text="+1", idempotency_key="k1"))
+    show(api.comment.build_request(repo="nanosdk", number=12, text="+1", idempotency_key="k1"))
     png = ("shot.png", b"\x89PNG\r\n", "image/png")
-    show(api.attach.build_request(repo="nanoapi", caption="screenshot", file=png))
+    show(api.attach.build_request(repo="nanosdk", caption="screenshot", file=png))
     show(api.login.build_request(username="ada", password="hunter2"))
     show(api.ping.build_request())
 
@@ -186,7 +186,7 @@ def main() -> None:
 
     # Arguments are validated by pydantic *before* anything is sent:
     try:
-        api.search(repo="nanoapi", state="reopened")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+        api.search(repo="nanosdk", state="reopened")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     except ValidationError as exc:
         print(f"\nrejected before sending: {exc.errors()[0]['msg']}")
 

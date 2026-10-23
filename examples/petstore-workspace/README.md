@@ -1,4 +1,4 @@
-# Petstore workspace: an OpenAPI SDK generated with `nanoapi generate`, in a uv workspace
+# Petstore workspace: an OpenAPI SDK generated with `nanosdk generate`, in a uv workspace
 
 A [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/) with two packages
 sharing one lockfile and one virtualenv:
@@ -10,9 +10,9 @@ petstore-workspace/
 └── packages/
     ├── petstore/               # the SDK (a library)
     │   ├── openapi.json        # vendored spec
-    │   ├── pyproject.toml      # [tool.nanoapi.codegen] lives here
+    │   ├── pyproject.toml      # [tool.nanosdk.codegen] lives here
     │   ├── src/petstore/
-    │   │   ├── _generated/     # GENERATED from openapi.json by `nanoapi generate`
+    │   │   ├── _generated/     # GENERATED from openapi.json by `nanosdk generate`
     │   │   │   ├── models.py   #   pydantic models (via datamodel-codegen)
     │   │   │   └── client.py   #   parameter models, routes, PetstoreBase clients
     │   │   ├── client.py       # hand-written: auth, retries, error model, one fix
@@ -51,8 +51,8 @@ echo 3.13 > .python-version
 uv init --lib     --python 3.13 --no-pin-python --name petstore      packages/petstore
 uv init --package --python 3.13 --no-pin-python --name petstore-demo packages/petstore-demo
 
-# SDK dependencies. nanoapi comes from this repo as an editable path dependency;
-# in a real project that's just `uv add --package petstore nanoapi`.
+# SDK dependencies. nanosdk comes from this repo as an editable path dependency;
+# in a real project that's just `uv add --package petstore nanosdk`.
 uv add --package petstore pydantic
 uv add --package petstore --editable ../..
 
@@ -60,7 +60,7 @@ uv add --package petstore --editable ../..
 uv add --package petstore-demo petstore
 
 # Dev tools live at the root and are shared by every member.
-uv add --dev "nanoapi[codegen]" pytest pytest-asyncio pyright ty mypy ruff
+uv add --dev "nanosdk[codegen]" pytest pytest-asyncio pyright ty mypy ruff
 ```
 
 Pass `--python 3.13` to `uv init`. Without it, `requires-python` follows the newest
@@ -69,21 +69,21 @@ interpreter uv finds, which may be newer than you meant to require.
 ## Generating the client
 
 ```bash
-uv run --directory packages/petstore nanoapi generate          # regenerate _generated/
-uv run --directory packages/petstore nanoapi generate --check  # CI: is it up to date?
+uv run --directory packages/petstore nanosdk generate          # regenerate _generated/
+uv run --directory packages/petstore nanosdk generate --check  # CI: is it up to date?
 ```
 
 The settings are in `packages/petstore/pyproject.toml`:
 
 ```toml
-[tool.nanoapi.codegen]
+[tool.nanosdk.codegen]
 spec = "openapi.json"
 output = "src/petstore/_generated"
 name = "PetstoreBase"
 base-url = "https://petstore3.swagger.io/api/v3"  # the spec only has a relative server URL
 skip = ["updatePetWithForm"]  # hand-written in client.py: the server is stricter than the spec
 
-[tool.nanoapi.codegen.rename]  # keep the SDK's established method names
+[tool.nanosdk.codegen.rename]  # keep the SDK's established method names
 getPetById = "get_pet"
 findPetsByStatus = "find_by_status"
 ...
@@ -95,7 +95,7 @@ route grouped by tag. When an operation's only input is a JSON model, the model 
 the request, so `add_pet(name="rex", photo_urls=[...])` works directly. Inline schemas get
 stable names (`GetPetByIdResponse`) before datamodel-codegen runs.
 
-`test_generated_code_is_up_to_date` runs `nanoapi generate --check`, so CI fails if
+`test_generated_code_is_up_to_date` runs `nanosdk generate --check`, so CI fails if
 someone edits `_generated/` by hand or changes `openapi.json` without regenerating.
 
 ## The hand-written part
@@ -103,9 +103,9 @@ someone edits `_generated/` by hand or changes `openapi.json` without regenerati
 `client.py` subclasses the generated `PetstoreBase` / `AsyncPetstoreBase`:
 
 ```python
-class HandWritten(nanoapi.Routes):
+class HandWritten(nanosdk.Routes):
     # Skipped by the generator: the spec says `name` is optional, the server 400s without it.
-    update_pet_form = nanoapi.post("/pet/{pet_id}", request=UpdatePetForm, response=Pet)
+    update_pet_form = nanosdk.post("/pet/{pet_id}", request=UpdatePetForm, response=Pet)
 
 class Petstore(HandWritten, PetstoreBase):
     def __init__(self, base_url=DEFAULT_BASE_URL, *, api_key="special-key", retry=..., transport=None):

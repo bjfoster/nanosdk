@@ -15,7 +15,7 @@ __all__ = ["Retry"]
 class Retry:
     """When to re-send a request, and how long to wait first.
 
-    Pass one as `retry=` to a client (or [`with_options`][nanoapi.Client.with_options]).
+    Pass one as `retry=` to a client (or [`with_options`][nanosdk.Client.with_options]).
     Each attempt goes through the client's `prepare_request` hook again, so signatures
     and timestamps are fresh. Only idempotent `methods` are retried by default: add
     `"POST"` if your API deduplicates with idempotency keys.
@@ -25,12 +25,12 @@ class Retry:
 
     Example:
         ```python
-        api = Api(url, retry=nanoapi.Retry(max_retries=5, statuses={429, 503}))
+        api = Api(url, retry=nanosdk.Retry(max_retries=5, statuses={429, 503}))
         ```
 
-    Subclass it and override [`should_retry`][nanoapi.Retry.should_retry] or
-    [`delay`][nanoapi.Retry.delay] for custom rules; the client's
-    [`_retry_policy`][nanoapi.Client._retry_policy] hook picks a policy per route.
+    Subclass it and override [`should_retry`][nanosdk.Retry.should_retry] or
+    [`delay`][nanosdk.Retry.delay] for custom rules; the client's
+    [`_retry_policy`][nanosdk.Client._retry_policy] hook picks a policy per route.
 
     Args:
         max_retries: Retries after the first attempt (so up to `max_retries + 1` tries).
@@ -65,7 +65,7 @@ class Retry:
                 error (connection refused, timeout, ...).
 
         Returns:
-            `True` to retry after [`delay`][nanoapi.Retry.delay] seconds.
+            `True` to retry after [`delay`][nanosdk.Retry.delay] seconds.
         """
         if attempt >= self.max_retries or request.method not in self.methods:
             return False

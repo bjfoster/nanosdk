@@ -949,7 +949,7 @@ wheels = [
 ]
 
 [[package]]
-name = "nanoapi"
+name = "nanosdk"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

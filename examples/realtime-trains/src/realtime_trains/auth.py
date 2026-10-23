@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from pydantic import ValidationError
 
-import nanoapi
+import nanosdk
 
 from ._generated.models import AccessTokenResponse as AccessToken
 
@@ -63,7 +63,7 @@ class RefreshTokenAuth(httpx.Auth):
         """Attach a valid access token, fetching or renewing it first when needed.
 
         Raises:
-            nanoapi.APIStatusError: If the token endpoint rejects the refresh token.
+            nanosdk.APIStatusError: If the token endpoint rejects the refresh token.
         """
         if self._expired():
             self._store((yield self._token_request()))
@@ -98,7 +98,7 @@ class RefreshTokenAuth(httpx.Auth):
             else:
                 if self.token.token:
                     return
-        raise nanoapi.APIStatusError(response, body=body)
+        raise nanosdk.APIStatusError(response, body=body)
 
     def _access_token(self) -> str:
         assert self.token is not None

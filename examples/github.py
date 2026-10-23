@@ -11,8 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import Bearer
+import nanosdk
+from nanosdk.auth import Bearer
 
 # --- models -----------------------------------------------------------------
 
@@ -62,18 +62,18 @@ class SearchRepos(BaseModel):
 # --- client -----------------------------------------------------------------
 
 
-class GitHub(nanoapi.Client):
-    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+class GitHub(nanosdk.Client):
+    get_user = nanosdk.get("/users/{username}", request=GetUser, response=User)
 
     # GitHub paginates with `Link: <...?page=2>; rel="next"` headers.
-    list_repos = nanoapi.get(
+    list_repos = nanosdk.get(
         "/users/{username}/repos", request=ListRepos, response=list[Repo]
-    ).paginate(nanoapi.LinkHeader())
+    ).paginate(nanosdk.LinkHeader())
 
     # Search wraps the list in an envelope, so say where the items live.
-    search_repos = nanoapi.get(
+    search_repos = nanosdk.get(
         "/search/repositories", request=SearchRepos, response=SearchResult
-    ).paginate(nanoapi.LinkHeader(), items=lambda result: result.items)
+    ).paginate(nanosdk.LinkHeader(), items=lambda result: result.items)
 
     def __init__(self, token: str | None = None) -> None:
         super().__init__(
@@ -84,7 +84,7 @@ class GitHub(nanoapi.Client):
             },
             auth=Bearer(token) if token else None,
             error_model=GitHubError,  # 4xx/5xx bodies -> APIStatusError.error
-            retry=nanoapi.Retry(),  # 429s and 5xx, honouring Retry-After
+            retry=nanosdk.Retry(),  # 429s and 5xx, honouring Retry-After
         )
 
 
@@ -93,7 +93,7 @@ def main() -> None:
         user = gh.get_user(username="octocat")
         print(f"{user.login} ({user.name}): {user.public_repos} public repos\n")
 
-        # per_page=5 -> nanoapi follows the Link header across two pages.
+        # per_page=5 -> nanosdk follows the Link header across two pages.
         print("octocat's repos, most recently updated first:")
         for repo in gh.list_repos.iter(username="octocat", per_page=5):
             print(f"  {repo.full_name:<40} ★{repo.stargazers_count:<6} {repo.language or '-'}")
@@ -110,7 +110,7 @@ def main() -> None:
 
         try:
             gh.get_user(username="this-user-should-not-exist-4f3a9")
-        except nanoapi.APIStatusError as exc:
+        except nanosdk.APIStatusError as exc:
             error: GitHubError | None = exc.error
             print(f"\n{exc.status_code}: {error.message if error else exc.body}")
 

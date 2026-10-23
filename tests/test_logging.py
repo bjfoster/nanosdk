@@ -6,8 +6,8 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import ApiKey, Bearer, OAuth2ClientCredentials
+import nanosdk
+from nanosdk.auth import ApiKey, Bearer, OAuth2ClientCredentials
 
 type Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -22,10 +22,10 @@ class Page(BaseModel):
     page: int = 1
 
 
-class Api(nanoapi.Client):
-    get_items = nanoapi.get("/items", response=list[Item])
-    paged = nanoapi.get("/paged", request=Page, response=list[Item]).paginate(nanoapi.PageNumber())
-    stuck = nanoapi.get("/paged", request=Page, response=list[Item]).paginate(lambda p: p.request)
+class Api(nanosdk.Client):
+    get_items = nanosdk.get("/items", response=list[Item])
+    paged = nanosdk.get("/paged", request=Page, response=list[Item]).paginate(nanosdk.PageNumber())
+    stuck = nanosdk.get("/paged", request=Page, response=list[Item]).paginate(lambda p: p.request)
 
 
 def api(handler: Handler, **kwargs: Any) -> Api:
@@ -45,7 +45,7 @@ def flaky(*statuses: int) -> Handler:
     return handler
 
 
-NO_WAIT = nanoapi.Retry(backoff=0, jitter=0)
+NO_WAIT = nanosdk.Retry(backoff=0, jitter=0)
 
 
 def records(caplog: pytest.LogCaptureFixture, level: int) -> list[logging.LogRecord]:
@@ -53,22 +53,22 @@ def records(caplog: pytest.LogCaptureFixture, level: int) -> list[logging.LogRec
 
 
 def test_silent_by_default(caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level(logging.INFO, logger="nanoapi")
+    caplog.set_level(logging.INFO, logger="nanosdk")
     api(ok).get_items()
     assert caplog.records == []
 
 
 def test_library_logger_has_a_null_handler() -> None:
-    handlers = logging.getLogger("nanoapi").handlers
+    handlers = logging.getLogger("nanosdk").handlers
     assert any(isinstance(h, logging.NullHandler) for h in handlers)
 
 
 def test_debug_logs_each_response_with_structured_fields(caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level(logging.DEBUG, logger="nanoapi")
+    caplog.set_level(logging.DEBUG, logger="nanosdk")
     api(ok).get_items()
 
     [record] = records(caplog, logging.DEBUG)
-    assert record.name == "nanoapi"
+    assert record.name == "nanosdk"
     assert record.getMessage().startswith("GET https://api.test/items -> 200 OK in ")
     assert record.getMessage().endswith("(get_items, attempt 1)")
     fields = record.__dict__
@@ -81,7 +81,7 @@ def test_debug_logs_each_response_with_structured_fields(caplog: pytest.LogCaptu
 
 
 def test_retries_are_warnings(caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level(logging.WARNING, logger="nanoapi")
+    caplog.set_level(logging.WARNING, logger="nanosdk")
     api(flaky(503, 429), retry=NO_WAIT).get_items()
 
     warnings = records(caplog, logging.WARNING)
@@ -105,7 +105,7 @@ def test_transport_errors(caplog: pytest.LogCaptureFixture) -> None:
             raise httpx.ConnectError("refused")
         return ok(request)
 
-    caplog.set_level(logging.DEBUG, logger="nanoapi")
+    caplog.set_level(logging.DEBUG, logger="nanosdk")
     api(handler, retry=NO_WAIT).get_items()
 
     messages = [r.getMessage() for r in caplog.records]
@@ -122,7 +122,7 @@ def test_credentials_never_reach_the_logs(caplog: pytest.LogCaptureFixture) -> N
     api(ok, auth=ApiKey("api_key", SECRET, location="query")).get_items()
     api(flaky(503), retry=NO_WAIT, auth=Bearer(SECRET)).get_items()  # a retry warning too
 
-    ours = [r for r in caplog.records if r.name.startswith("nanoapi")]
+    ours = [r for r in caplog.records if r.name.startswith("nanosdk")]
     assert len(ours) == 5  # 200, 200, then 503 + retry warning + 200
     for record in ours:
         assert SECRET not in record.getMessage()
@@ -142,7 +142,7 @@ def test_pagination(caplog: pytest.LogCaptureFixture) -> None:
         number = int(request.url.params["page"])
         return httpx.Response(200, json=[{"id": number}] if number < 3 else [])
 
-    caplog.set_level(logging.DEBUG, logger="nanoapi")
+    caplog.set_level(logging.DEBUG, logger="nanosdk")
     assert [i.id for i in api(pages).paged.iter()] == [1, 2]
     page_logs = [r.getMessage() for r in caplog.records if "page" in r.__dict__]
     assert page_logs == [
@@ -173,11 +173,11 @@ def test_oauth(caplog: pytest.LogCaptureFixture) -> None:
             return httpx.Response(401)  # first token gets revoked
         return ok(request)
 
-    caplog.set_level(logging.DEBUG, logger="nanoapi")
+    caplog.set_level(logging.DEBUG, logger="nanosdk")
     oauth = OAuth2ClientCredentials("https://auth.test/token", "id", "secret")
     api(handler, auth=oauth).get_items()
 
-    auth_logs = [(r.levelname, r.getMessage()) for r in caplog.records if r.name == "nanoapi.auth"]
+    auth_logs = [(r.levelname, r.getMessage()) for r in caplog.records if r.name == "nanosdk.auth"]
     assert auth_logs == [
         ("DEBUG", "Fetching an OAuth token from https://auth.test/token (no token yet)"),
         ("DEBUG", "Got an OAuth token valid for 60 s"),
@@ -190,10 +190,10 @@ def test_oauth(caplog: pytest.LogCaptureFixture) -> None:
 
 
 async def test_async_client_logs_too(caplog: pytest.LogCaptureFixture) -> None:
-    class AsyncApi(nanoapi.AsyncClient):
-        get_items = nanoapi.get("/items", response=list[Item])
+    class AsyncApi(nanosdk.AsyncClient):
+        get_items = nanosdk.get("/items", response=list[Item])
 
-    caplog.set_level(logging.DEBUG, logger="nanoapi")
+    caplog.set_level(logging.DEBUG, logger="nanosdk")
     async with AsyncApi(
         "https://api.test", transport=httpx.MockTransport(flaky(502)), retry=NO_WAIT
     ) as client:

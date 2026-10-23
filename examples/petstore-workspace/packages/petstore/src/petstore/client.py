@@ -1,6 +1,6 @@
 """The hand-written half of the SDK, on top of the generated `_generated` package.
 
-`_generated/` comes from `openapi.json` via `nanoapi generate`: the models, a parameter
+`_generated/` comes from `openapi.json` via `nanosdk generate`: the models, a parameter
 model per operation, every route, and `PetstoreBase` / `AsyncPetstoreBase` clients.
 This module adds only what the spec can't express: auth, retries, the error model, and
 a fix where the live server is stricter than the spec.
@@ -11,8 +11,8 @@ from typing import Annotated
 import httpx
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import ApiKey
+import nanosdk
+from nanosdk.auth import ApiKey
 
 from ._generated.client import DEFAULT_BASE_URL, AsyncPetstoreBase, PetstoreBase
 from ._generated.models import ApiResponse, Pet, PetStatus
@@ -27,19 +27,19 @@ class UpdatePetForm(BaseModel):
     # The spec marks `name` optional, but the live server answers 400 "No Name
     # provided" without it. So this operation is skipped by the generator (see
     # `skip` in pyproject.toml) and declared here instead.
-    name: Annotated[str, nanoapi.Query()]
-    status: Annotated[PetStatus | None, nanoapi.Query()] = None
+    name: Annotated[str, nanosdk.Query()]
+    status: Annotated[PetStatus | None, nanosdk.Query()] = None
 
 
-class HandWritten(nanoapi.Routes):
+class HandWritten(nanosdk.Routes):
     """Operations the generator skips because the spec gets them wrong."""
 
-    update_pet_form = nanoapi.post(
+    update_pet_form = nanosdk.post(
         "/pet/{pet_id}", request=UpdatePetForm, response=Pet, exclude_unset=True
     )
 
 
-DEFAULT_RETRY = nanoapi.Retry()
+DEFAULT_RETRY = nanosdk.Retry()
 
 
 class Petstore(HandWritten, PetstoreBase):
@@ -50,7 +50,7 @@ class Petstore(HandWritten, PetstoreBase):
         base_url: str = DEFAULT_BASE_URL,
         *,
         api_key: str | None = "special-key",
-        retry: nanoapi.Retry | None = DEFAULT_RETRY,
+        retry: nanosdk.Retry | None = DEFAULT_RETRY,
         transport: httpx.BaseTransport | None = None,  # tests pass httpx.MockTransport
     ) -> None:
         super().__init__(
@@ -70,7 +70,7 @@ class AsyncPetstore(HandWritten, AsyncPetstoreBase):
         base_url: str = DEFAULT_BASE_URL,
         *,
         api_key: str | None = "special-key",
-        retry: nanoapi.Retry | None = DEFAULT_RETRY,
+        retry: nanosdk.Retry | None = DEFAULT_RETRY,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         super().__init__(

@@ -1,6 +1,6 @@
-site_name: nanoapi
+site_name: nanosdk
 site_description: A tiny, fully typed HTTP client core on httpx + pydantic.
-repo_name: nanoapi
+repo_name: nanosdk
 copyright: MIT License
 
 theme:

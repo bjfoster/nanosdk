@@ -1,7 +1,7 @@
 # API reference
 
 Generated from the docstrings in the source. Everything is importable from the top-level
-`nanoapi` package, except the [`nanoapi.auth`](auth.md) and [`nanoapi.frames`](frames.md)
+`nanosdk` package, except the [`nanosdk.auth`](auth.md) and [`nanosdk.frames`](frames.md)
 modules.
 
 | Page | Contents |
@@ -13,5 +13,5 @@ modules.
 | [Retries](retry.md) | `Retry` |
 | [Auth](auth.md) | `Bearer`, `ApiKey`, `OAuth2ClientCredentials` |
 | [DataFrames](frames.md) | `frames.polars`, `frames.pandas`, `frames.records` |
-| [Errors](errors.md) | `NanoAPIError` and its subclasses |
-| [Code generation](codegen.md) | `nanoapi generate` / `nanoapi.codegen`: typed clients from OpenAPI |
+| [Errors](errors.md) | `NanoSDKError` and its subclasses |
+| [Code generation](codegen.md) | `nanosdk generate` / `nanosdk.codegen`: typed clients from OpenAPI |

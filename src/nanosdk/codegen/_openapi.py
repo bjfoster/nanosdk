@@ -50,7 +50,7 @@ def snake(name: str) -> str:
 # attribute (`date: date | None` breaks the class body; `json` shadows BaseModel.json).
 # Other builtins (`id`, `filter`, ...) are fine as field names.
 SHADOWED = frozenset(
-    {"date", "datetime", "Any", "Literal", "Annotated", "Field", "BaseModel", "nanoapi"}
+    {"date", "datetime", "Any", "Literal", "Annotated", "Field", "BaseModel", "nanosdk"}
     | {"str", "int", "float", "bool", "bytes", "list", "dict", "object", "type", "None"}
     | {n for n in dir(BaseModel) if not n.startswith("_")}
 )
@@ -493,7 +493,7 @@ class Reader:
         taken: set[str] = set()
         for (wire, where), p in merged.items():
             if where == "cookie":
-                continue  # not supported by nanoapi's field markers; set cookies on the client
+                continue  # not supported by nanosdk's field markers; set cookies on the client
             name = field_name(wire)
             if name in taken:
                 name = f"{name}_{where}"

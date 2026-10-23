@@ -9,7 +9,7 @@ rtt --demo board CLJ            # offline, against realtime_trains.testing
 import argparse
 from datetime import datetime
 
-import nanoapi
+import nanosdk
 
 from ._generated.models import IndividualTemporalData
 from .client import RealtimeTrains
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> None:
                         "entitlements:",
                         ", ".join(credentials.entitlements or []) if credentials else "-",
                     )
-        except nanoapi.APIStatusError as exc:
+        except nanosdk.APIStatusError as exc:
             raise SystemExit(f"{type(exc).__name__}: {exc.status_code} {exc.body}") from exc
         limit = rtt.rate_limits.get("minute")
         if limit:

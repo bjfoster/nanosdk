@@ -3,12 +3,12 @@
 A route ties an HTTP method and path to a request model and a response type:
 
 ```python
-class Api(nanoapi.Client):
-    get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+class Api(nanosdk.Client):
+    get_user = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
 ```
 
 On a client *instance*, `api.get_user` is a bound route you call like the request model's
-constructor; the result is the decoded response. See [Where fields go][nanoapi.params]
+constructor; the result is the decoded response. See [Where fields go][nanosdk.params]
 for how request fields are placed.
 """
 
@@ -61,7 +61,7 @@ _PLACEHOLDER = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
 class EncodedRequest:
     """Everything needed to build an `httpx.Request` for one call.
 
-    Produced by [`Route.encode`][nanoapi.Route.encode]; the client turns it into an
+    Produced by [`Route.encode`][nanosdk.Route.encode]; the client turns it into an
     `httpx.Request`.
 
     Attributes:
@@ -104,9 +104,9 @@ class _Plan:
 class Route[**P, ReqT, RespT]:
     """One HTTP endpoint: method, path, request model and response type.
 
-    Usually made with [`get`][nanoapi.get], [`post`][nanoapi.post] and friends rather than
-    directly. As a class attribute of a [`Client`][nanoapi.Client] it's a descriptor: on
-    an instance it becomes a [`BoundRoute`][nanoapi.BoundRoute] you call with the request
+    Usually made with [`get`][nanosdk.get], [`post`][nanosdk.post] and friends rather than
+    directly. As a class attribute of a [`Client`][nanosdk.Client] it's a descriptor: on
+    an instance it becomes a [`BoundRoute`][nanosdk.BoundRoute] you call with the request
     model's arguments.
 
     The type parameters carry the typing end to end: `P` is the request model's
@@ -191,7 +191,7 @@ class Route[**P, ReqT, RespT]:
         For routes that aren't declared on the client's class:
 
         ```python
-        get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+        get_user = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
         user = get_user.bind(api)(user_id=1)
         ```
 
@@ -215,7 +215,7 @@ class Route[**P, ReqT, RespT]:
     def with_prefix(self, prefix: str) -> Self:
         """Return a copy with `prefix` prepended to the path.
 
-        [`Routes`][nanoapi.Routes] groups call this for their `prefix=`.
+        [`Routes`][nanosdk.Routes] groups call this for their `prefix=`.
 
         Args:
             prefix: Path prefix such as `"/users"`; slashes are normalised.
@@ -235,8 +235,8 @@ class Route[**P, ReqT, RespT]:
 
         Example:
             ```python
-            count = nanoapi.get("/posts", response=list[Post]).map(len)       # -> int
-            frame = nanoapi.get("/posts", response=list[Post]).map(frames.polars)
+            count = nanosdk.get("/posts", response=list[Post]).map(len)       # -> int
+            frame = nanosdk.get("/posts", response=list[Post]).map(frames.polars)
             ```
 
         Args:
@@ -262,24 +262,24 @@ class Route[**P, ReqT, RespT]:
 
         Bound to a client, the result keeps the route's normal call (the first page)
         and adds `.iter()` (every item, lazily) and `.pages()` (every
-        [`Page`][nanoapi.Page]).
+        [`Page`][nanosdk.Page]).
 
         Example:
             ```python
             # The response is a list: its elements are the items.
-            by_offset = nanoapi.get("/posts", request=ListPosts, response=list[Post]).paginate(
-                nanoapi.Offset("offset", limit="limit")
+            by_offset = nanosdk.get("/posts", request=ListPosts, response=list[Post]).paginate(
+                nanosdk.Offset("offset", limit="limit")
             )
             # The response wraps the list: say where the items are.
-            feed = nanoapi.get("/feed", request=Feed, response=FeedPage).paginate(
-                nanoapi.Cursor("next_cursor"), items=lambda page: page.data
+            feed = nanosdk.get("/feed", request=Feed, response=FeedPage).paginate(
+                nanosdk.Cursor("next_cursor"), items=lambda page: page.data
             )
             ```
 
         Args:
-            next: The pagination strategy: [`Cursor`][nanoapi.Cursor],
-                [`Offset`][nanoapi.Offset], [`PageNumber`][nanoapi.PageNumber],
-                [`LinkHeader`][nanoapi.LinkHeader], or any function of the current
+            next: The pagination strategy: [`Cursor`][nanosdk.Cursor],
+                [`Offset`][nanosdk.Offset], [`PageNumber`][nanosdk.PageNumber],
+                [`LinkHeader`][nanosdk.LinkHeader], or any function of the current
                 `Page` returning the next request model, an `httpx.URL`, or `None` to stop.
             items: Extracts the item list from a decoded page. Optional when the
                 response type is already a `list`.
@@ -489,11 +489,11 @@ def _scalar(value: Any) -> str:
 
 
 class Verb:
-    """Declares routes for one HTTP method; `nanoapi.get`, `nanoapi.post` and so on.
+    """Declares routes for one HTTP method; `nanosdk.get`, `nanosdk.post` and so on.
 
-    Call it with a path and the request/response types to get a [`Route`][nanoapi.Route].
+    Call it with a path and the request/response types to get a [`Route`][nanosdk.Route].
     Overloads give the route precise types whether or not `request` and `response` are
-    given. Use [`route`][nanoapi.route] for methods without a ready-made verb.
+    given. Use [`route`][nanosdk.route] for methods without a ready-made verb.
 
     Args:
         method: The HTTP method this verb declares.
@@ -560,15 +560,15 @@ class Verb:
 
         Example:
             ```python
-            get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
-            health = nanoapi.get("/health", response=str, headers={"X-Probe": "1"})
+            get_user = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
+            health = nanosdk.get("/health", response=str, headers={"X-Probe": "1"})
             ```
 
         Args:
             path: The path, relative to the client's `base_url`, with `{name}`
                 placeholders filled from request-model fields.
             request: The request model class; `None` for routes without arguments.
-            response: The response type (see [`Route`][nanoapi.Route]); `None` ignores
+            response: The response type (see [`Route`][nanosdk.Route]); `None` ignores
                 the body.
             headers: Static headers sent with every call.
             exclude_unset: Only send fields the caller set; defaults to `True` for PATCH.
@@ -605,11 +605,11 @@ options = Verb("OPTIONS")
 
 
 def route(method: str) -> Verb:
-    """Get a [`Verb`][nanoapi.Verb] for any HTTP method.
+    """Get a [`Verb`][nanosdk.Verb] for any HTTP method.
 
     Example:
         ```python
-        propfind = nanoapi.route("PROPFIND")("/dav/{path}", request=DavPath, response=str)
+        propfind = nanosdk.route("PROPFIND")("/dav/{path}", request=DavPath, response=str)
         ```
 
     Args:
@@ -624,17 +624,17 @@ def route(method: str) -> Verb:
 class Routes:
     """Base for a reusable group of routes, optionally under a common path prefix.
 
-    Mix groups into a [`Client`][nanoapi.Client] and an
-    [`AsyncClient`][nanoapi.AsyncClient] to share one set of route declarations between
+    Mix groups into a [`Client`][nanosdk.Client] and an
+    [`AsyncClient`][nanosdk.AsyncClient] to share one set of route declarations between
     a sync and an async SDK.
 
     Example:
         ```python
-        class Users(nanoapi.Routes, prefix="/users"):
-            get = nanoapi.get("/{user_id}", request=GetUser, response=User)  # /users/{user_id}
+        class Users(nanosdk.Routes, prefix="/users"):
+            get = nanosdk.get("/{user_id}", request=GetUser, response=User)  # /users/{user_id}
 
-        class Api(Users, Billing, nanoapi.Client): ...
-        class AsyncApi(Users, Billing, nanoapi.AsyncClient): ...
+        class Api(Users, Billing, nanosdk.Client): ...
+        class AsyncApi(Users, Billing, nanosdk.AsyncClient): ...
         ```
 
     Pass `prefix=` as a class keyword to prepend it to every route declared in the class
@@ -652,9 +652,9 @@ class Routes:
 class PaginatedRoute[**P, ReqT, RespT, ItemT]:
     """A route plus the rules for walking its pages.
 
-    Made by [`Route.paginate`][nanoapi.Route.paginate].
+    Made by [`Route.paginate`][nanosdk.Route.paginate].
 
-    Bound to a client it becomes a [`BoundPaginatedRoute`][nanoapi.BoundPaginatedRoute]
+    Bound to a client it becomes a [`BoundPaginatedRoute`][nanosdk.BoundPaginatedRoute]
     (or the async twin): calling it still fetches just the first page, and `.iter(...)`
     / `.pages(...)` walk all of them. `ItemT` is the type of each item.
 
@@ -717,7 +717,7 @@ class PaginatedRoute[**P, ReqT, RespT, ItemT]:
         return type(self)(self.route.with_prefix(prefix), items=self.items, next=self.next_page)
 
     def make_page(self, request: ReqT, response: httpx.Response) -> Page[ReqT, RespT, ItemT]:
-        """Decode a response into a [`Page`][nanoapi.Page].
+        """Decode a response into a [`Page`][nanosdk.Page].
 
         Args:
             request: The request model that produced `response`.

@@ -12,7 +12,7 @@ from typing import Annotated, Any
 import httpx
 from pydantic import BaseModel
 
-import nanoapi
+import nanosdk
 
 # --- a fake API that paginates 23 items five different ways --------------------
 
@@ -80,7 +80,7 @@ class CursorBody(BaseModel):
 
 
 class StripeQuery(BaseModel):
-    starting_after: Annotated[int | None, nanoapi.Query()] = None
+    starting_after: Annotated[int | None, nanosdk.Query()] = None
 
 
 class StripeBody(BaseModel):
@@ -91,7 +91,7 @@ class StripeBody(BaseModel):
 # --- a hand-written strategy: any function (Page) -> next request | URL | None ---
 
 
-def stripe_next(page: nanoapi.Page[StripeQuery, StripeBody, Item]) -> StripeQuery | None:
+def stripe_next(page: nanosdk.Page[StripeQuery, StripeBody, Item]) -> StripeQuery | None:
     """Stripe style: ask for items after the last id we saw, while has_more."""
     if not page.data.has_more:
         return None
@@ -101,32 +101,32 @@ def stripe_next(page: nanoapi.Page[StripeQuery, StripeBody, Item]) -> StripeQuer
 # --- routes -----------------------------------------------------------------------
 
 
-class Catalog(nanoapi.Routes):
+class Catalog(nanosdk.Routes):
     # Offset: advance by len(items); stop on a page shorter than `limit`.
-    by_offset = nanoapi.get("/offset", request=OffsetQuery, response=list[Item]).paginate(
-        nanoapi.Offset("offset", limit="limit")
+    by_offset = nanosdk.get("/offset", request=OffsetQuery, response=list[Item]).paginate(
+        nanosdk.Offset("offset", limit="limit")
     )
     # Page number: page += 1; stop on an empty or short page.
-    by_page = nanoapi.get("/pages", request=PageQuery, response=PageBody).paginate(
-        nanoapi.PageNumber("page", size="per_page"), items=lambda body: body.results
+    by_page = nanosdk.get("/pages", request=PageQuery, response=PageBody).paginate(
+        nanosdk.PageNumber("page", size="per_page"), items=lambda body: body.results
     )
     # Cursor: read `next_cursor` from the body, send it back as `after`.
-    by_cursor = nanoapi.get("/cursor", request=CursorQuery, response=CursorBody).paginate(
-        nanoapi.Cursor("next_cursor", param="after"), items=lambda body: body.data
+    by_cursor = nanosdk.get("/cursor", request=CursorQuery, response=CursorBody).paginate(
+        nanosdk.Cursor("next_cursor", param="after"), items=lambda body: body.data
     )
     # Your own strategy.
-    by_stripe = nanoapi.get("/stripe", request=StripeQuery, response=StripeBody).paginate(
+    by_stripe = nanosdk.get("/stripe", request=StripeQuery, response=StripeBody).paginate(
         stripe_next, items=lambda body: body.data
     )
     # RFC 8288 Link headers (GitHub, GitLab, ...). No request model needed.
-    by_link = nanoapi.get("/linked", response=list[Item]).paginate(nanoapi.LinkHeader())
+    by_link = nanosdk.get("/linked", response=list[Item]).paginate(nanosdk.LinkHeader())
 
 
-class Api(Catalog, nanoapi.Client):
+class Api(Catalog, nanosdk.Client):
     pass
 
 
-class AsyncApi(Catalog, nanoapi.AsyncClient):
+class AsyncApi(Catalog, nanosdk.AsyncClient):
     pass
 
 
@@ -172,8 +172,8 @@ def main() -> None:
     print("\nfirst three:", [i.name for i in islice(api.by_offset.iter(limit=10), 3)], log)
 
     # Ad hoc: paginate a route that isn't declared on the class.
-    adhoc = nanoapi.get("/offset", request=OffsetQuery, response=list[Item]).paginate(
-        nanoapi.Offset()
+    adhoc = nanosdk.get("/offset", request=OffsetQuery, response=list[Item]).paginate(
+        nanosdk.Offset()
     )
     print("ad hoc:", sum(1 for _ in adhoc.bind(api).iter(limit=7)), "items")
 

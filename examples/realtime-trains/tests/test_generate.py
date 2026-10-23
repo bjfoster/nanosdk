@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import yaml
 
-from nanoapi.codegen import cli
+from nanosdk.codegen import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 

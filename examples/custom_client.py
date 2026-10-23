@@ -16,7 +16,7 @@ from typing import Annotated, Any
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 
-import nanoapi
+import nanosdk
 
 SECRET = b"shared-secret"
 
@@ -105,7 +105,7 @@ class Transfer(BaseModel):
     to_account: str
     amount_cents: int
     # A fresh key per call, sent as the `idempotency-key` header and reused by retries.
-    idempotency_key: Annotated[str, nanoapi.Header()] = Field(
+    idempotency_key: Annotated[str, nanosdk.Header()] = Field(
         default_factory=lambda: str(uuid.uuid4())
     )
 
@@ -142,7 +142,7 @@ class InsufficientFunds(BankError):
 # --- retries that know about idempotency -----------------------------------------
 
 
-class IdempotentRetry(nanoapi.Retry):
+class IdempotentRetry(nanosdk.Retry):
     """The default policy never retries POST. Retry it when it carries an
     Idempotency-Key, since the server will then dedupe it."""
 
@@ -159,10 +159,10 @@ class IdempotentRetry(nanoapi.Retry):
 # --- the client --------------------------------------------------------------------
 
 
-class Bank(nanoapi.Client):
-    health = nanoapi.get("/health", response=Health, meta={"signed": False, "retry": False})
-    get_account = nanoapi.get("/accounts/{account_id}", request=AccountId, response=Account)
-    transfer = nanoapi.post("/transfers", request=Transfer, response=Receipt)
+class Bank(nanosdk.Client):
+    health = nanosdk.get("/health", response=Health, meta={"signed": False, "retry": False})
+    get_account = nanosdk.get("/accounts/{account_id}", request=AccountId, response=Account)
+    transfer = nanosdk.post("/transfers", request=Transfer, response=Receipt)
 
     def __init__(self, transport: httpx.BaseTransport) -> None:
         super().__init__(
@@ -170,7 +170,7 @@ class Bank(nanoapi.Client):
         )
 
     def _prepare_request(
-        self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
+        self, request: httpx.Request, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Request:
         """Runs on every attempt, so each retry gets a fresh timestamp + signature."""
         if route.meta.get("signed", True):
@@ -183,7 +183,7 @@ class Bank(nanoapi.Client):
         return request
 
     def _process_response(
-        self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
+        self, response: httpx.Response, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Unwrap {"ok": true, "data": X} so response models can describe just X."""
         print(f"  <- {response.status_code} ({route.name})")
@@ -204,7 +204,7 @@ class Bank(nanoapi.Client):
         exc_type = {404: NotFound, 422: InsufficientFunds}.get(response.status_code, BankError)
         raise exc_type(response.status_code, error)
 
-    def _retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
+    def _retry_policy(self, route: nanosdk.Route[Any, Any, Any]) -> nanosdk.Retry | None:
         return None if route.meta.get("retry") is False else super()._retry_policy(route)
 
 
@@ -234,10 +234,10 @@ def main() -> None:
         print(f"   NotFound: {exc}")
 
     print("\nthe same route through a plain client (no signing hook):")
-    plain = nanoapi.Client("https://bank.test", transport=httpx.MockTransport(server))
+    plain = nanosdk.Client("https://bank.test", transport=httpx.MockTransport(server))
     try:
         Bank.get_account.bind(plain)(account_id="acc_alice")
-    except nanoapi.APIStatusError as exc:
+    except nanosdk.APIStatusError as exc:
         print(f"   APIStatusError {exc.status_code}: {exc.body['error']['code']}")
 
 

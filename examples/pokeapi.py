@@ -1,6 +1,6 @@
 """PokéAPI: follow-the-next-URL pagination, async fan-out, and a polars DataFrame.
 
-Run:  pip install "nanoapi[polars]"
+Run:  pip install "nanosdk[polars]"
       python examples/pokeapi.py
 """
 
@@ -12,7 +12,7 @@ import httpx
 import polars as pl
 from pydantic import BaseModel
 
-import nanoapi
+import nanosdk
 
 # --- models -----------------------------------------------------------------
 
@@ -59,33 +59,33 @@ class ByName(BaseModel):
 # --- a custom pagination strategy -------------------------------------------
 
 
-def follow_next(page: nanoapi.Page[ListParams, ResourceList, NamedResource]) -> httpx.URL | None:
+def follow_next(page: nanosdk.Page[ListParams, ResourceList, NamedResource]) -> httpx.URL | None:
     """PokéAPI hands us the next page's full URL in the body. Returning an
-    ``httpx.URL`` tells nanoapi to re-send the request to exactly that URL."""
+    ``httpx.URL`` tells nanosdk to re-send the request to exactly that URL."""
     return httpx.URL(page.data.next) if page.data.next else None
 
 
 # --- client -----------------------------------------------------------------
 
 
-class PokeRoutes(nanoapi.Routes):
-    list_pokemon = nanoapi.get("/pokemon", request=ListParams, response=ResourceList).paginate(
+class PokeRoutes(nanosdk.Routes):
+    list_pokemon = nanosdk.get("/pokemon", request=ListParams, response=ResourceList).paginate(
         follow_next, items=lambda body: body.results
     )
-    get_pokemon = nanoapi.get("/pokemon/{name}", request=ByName, response=Pokemon)
+    get_pokemon = nanosdk.get("/pokemon/{name}", request=ByName, response=Pokemon)
 
 
 BASE_URL = "https://pokeapi.co/api/v2"
 
 
-class PokeAPI(PokeRoutes, nanoapi.Client):
+class PokeAPI(PokeRoutes, nanosdk.Client):
     def __init__(self) -> None:
-        super().__init__(BASE_URL, retry=nanoapi.Retry())
+        super().__init__(BASE_URL, retry=nanosdk.Retry())
 
 
-class AsyncPokeAPI(PokeRoutes, nanoapi.AsyncClient):
+class AsyncPokeAPI(PokeRoutes, nanosdk.AsyncClient):
     def __init__(self) -> None:
-        super().__init__(BASE_URL, retry=nanoapi.Retry(), limits=httpx.Limits(max_connections=20))
+        super().__init__(BASE_URL, retry=nanosdk.Retry(), limits=httpx.Limits(max_connections=20))
 
 
 def row(mon: Pokemon) -> dict[str, Any]:
@@ -116,7 +116,7 @@ def main() -> None:
     # Async fan-out: 151 detail requests, 20 connections at a time.
     mons = asyncio.run(fetch_all(names))
 
-    df = nanoapi.frames.polars([row(mon) for mon in mons])
+    df = nanosdk.frames.polars([row(mon) for mon in mons])
     print(df.sort("total", descending=True).select("name", "primary_type", "total").head(5))
     print(
         df.group_by("primary_type")

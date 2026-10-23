@@ -1,10 +1,10 @@
-"""Exceptions raised by nanoapi clients.
+"""Exceptions raised by nanosdk clients.
 
-Everything nanoapi raises (apart from pydantic's `ValidationError` for invalid call
-arguments, which happens before a request is sent) derives from `NanoAPIError`:
+Everything nanosdk raises (apart from pydantic's `ValidationError` for invalid call
+arguments, which happens before a request is sent) derives from `NanoSDKError`:
 
 ```text
-NanoAPIError
+NanoSDKError
 ├── APIConnectionError        no response at all
 │   └── APITimeoutError
 ├── APIStatusError            a 4xx/5xx response
@@ -21,22 +21,22 @@ __all__ = [
     "APIConnectionError",
     "APIStatusError",
     "APITimeoutError",
-    "NanoAPIError",
+    "NanoSDKError",
     "ResponseValidationError",
 ]
 
 
-class NanoAPIError(Exception):
-    """Base class for every error nanoapi raises.
+class NanoSDKError(Exception):
+    """Base class for every error nanosdk raises.
 
     Catch it to handle any API failure in one place.
     """
 
 
-class APIConnectionError(NanoAPIError):
+class APIConnectionError(NanoSDKError):
     """The request never got a response (DNS failure, refused connection, TLS, ...).
 
-    Raised after any retries allowed by the client's [`Retry`][nanoapi.Retry] policy
+    Raised after any retries allowed by the client's [`Retry`][nanosdk.Retry] policy
     are used up. The underlying `httpx.TransportError` is chained as `__cause__`.
 
     Args:
@@ -56,17 +56,17 @@ class APITimeoutError(APIConnectionError):
     """The request timed out (connect, read, write or pool timeout)."""
 
 
-class APIStatusError(NanoAPIError):
+class APIStatusError(NanoSDKError):
     """The server answered with a 4xx or 5xx status.
 
-    Raised by [`Client._raise_for_status`][nanoapi.Client._raise_for_status]; override that
+    Raised by [`Client._raise_for_status`][nanosdk.Client._raise_for_status]; override that
     to raise your own exceptions instead.
 
     Example:
         ```python
         try:
             api.get_user(user_id=1)
-        except nanoapi.APIStatusError as exc:
+        except nanosdk.APIStatusError as exc:
             if exc.status_code == 404:
                 ...
             print(exc.error)  # parsed with error_model, if the client has one
@@ -98,7 +98,7 @@ class APIStatusError(NanoAPIError):
         )
 
 
-class ResponseValidationError(NanoAPIError):
+class ResponseValidationError(NanoSDKError):
     """A successful response's body didn't match the route's declared response type.
 
     Args:

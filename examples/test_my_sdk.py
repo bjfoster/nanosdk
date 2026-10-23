@@ -1,4 +1,4 @@
-"""How to unit-test an SDK built on nanoapi: no mocking library, no network.
+"""How to unit-test an SDK built on nanosdk: no mocking library, no network.
 
 Hand the client an ``httpx.MockTransport`` and you control every response while
 the real encoding, hooks, retries, pagination and decoding all still run.
@@ -14,8 +14,8 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-import nanoapi
-from nanoapi.auth import Bearer
+import nanosdk
+from nanosdk.auth import Bearer
 
 # --- the SDK under test (normally imported from your package) ---------------------
 
@@ -28,7 +28,7 @@ class Todo(BaseModel):
 
 class NewTodo(BaseModel):
     title: str
-    request_id: Annotated[str | None, nanoapi.Header()] = None
+    request_id: Annotated[str | None, nanosdk.Header()] = None
 
 
 class ListTodos(BaseModel):
@@ -40,18 +40,18 @@ class TodoId(BaseModel):
     todo_id: int
 
 
-class TodoApi(nanoapi.Client):
-    list_todos = nanoapi.get("/todos", request=ListTodos, response=list[Todo]).paginate(
-        nanoapi.PageNumber()
+class TodoApi(nanosdk.Client):
+    list_todos = nanosdk.get("/todos", request=ListTodos, response=list[Todo]).paginate(
+        nanosdk.PageNumber()
     )
-    get_todo = nanoapi.get("/todos/{todo_id}", request=TodoId, response=Todo)
-    create_todo = nanoapi.post("/todos", request=NewTodo, response=Todo)
+    get_todo = nanosdk.get("/todos/{todo_id}", request=TodoId, response=Todo)
+    create_todo = nanosdk.post("/todos", request=NewTodo, response=Todo)
 
     def __init__(
         self,
         token: str,
         *,
-        retry: nanoapi.Retry | None = None,
+        retry: nanosdk.Retry | None = None,
         transport: httpx.BaseTransport | None = None,  # tests pass a MockTransport here
     ) -> None:
         super().__init__(
@@ -141,7 +141,7 @@ def test_build_request_needs_no_server(api: TodoApi) -> None:
 def test_api_errors(api: TodoApi, server: FakeServer) -> None:
     server.responses.append(httpx.Response(404, json={"detail": "no such todo"}))
 
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.get_todo(todo_id=404)
 
     assert info.value.status_code == 404
@@ -150,20 +150,20 @@ def test_api_errors(api: TodoApi, server: FakeServer) -> None:
 
 def test_unexpected_response_shape(api: TodoApi, server: FakeServer) -> None:
     server.responses.append(httpx.Response(200, json={"id": "not-a-number"}))
-    with pytest.raises(nanoapi.ResponseValidationError):
+    with pytest.raises(nanosdk.ResponseValidationError):
         api.get_todo(todo_id=1)
 
 
 def test_network_failure(api: TodoApi, server: FakeServer) -> None:
     server.responses.append(httpx.ConnectTimeout("slow"))
-    with pytest.raises(nanoapi.APITimeoutError):
+    with pytest.raises(nanosdk.APITimeoutError):
         api.get_todo(todo_id=1)
 
 
 def test_retry_policy(server: FakeServer) -> None:
     server.responses += [httpx.Response(503), httpx.Response(200, json={"id": 1, "title": "x"})]
     retrying = TodoApi(
-        "t0k", transport=httpx.MockTransport(server), retry=nanoapi.Retry(backoff=0, jitter=0)
+        "t0k", transport=httpx.MockTransport(server), retry=nanosdk.Retry(backoff=0, jitter=0)
     )
 
     assert retrying.get_todo(todo_id=1).id == 1

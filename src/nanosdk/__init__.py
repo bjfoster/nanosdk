@@ -1,9 +1,9 @@
-"""nanoapi: a tiny, fully typed HTTP client core on httpx + pydantic.
+"""nanosdk: a tiny, fully typed HTTP client core on httpx + pydantic.
 
 Declare routes, get a typed client:
 
 ```python
-import nanoapi
+import nanosdk
 from pydantic import BaseModel
 
 class User(BaseModel):
@@ -13,15 +13,15 @@ class User(BaseModel):
 class GetUser(BaseModel):
     username: str
 
-class GitHub(nanoapi.Client):
-    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+class GitHub(nanosdk.Client):
+    get_user = nanosdk.get("/users/{username}", request=GetUser, response=User)
 
 with GitHub("https://api.github.com") as gh:
     user = gh.get_user(username="octocat")  # typed: User
 ```
 
-Everything public is importable from `nanoapi` directly, plus the
-[`nanoapi.auth`][nanoapi.auth] and [`nanoapi.frames`][nanoapi.frames] modules.
+Everything public is importable from `nanosdk` directly, plus the
+[`nanosdk.auth`][nanosdk.auth] and [`nanosdk.frames`][nanosdk.frames] modules.
 """
 
 import logging
@@ -41,7 +41,7 @@ from .errors import (
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
-    NanoAPIError,
+    NanoSDKError,
     ResponseValidationError,
 )
 from .pagination import Cursor, LinkHeader, NextPage, Offset, Page, PageNumber
@@ -65,7 +65,7 @@ from .routing import (
 __version__ = "0.1.0"
 
 # Libraries shouldn't print unless the application configures logging.
-logging.getLogger("nanoapi").addHandler(logging.NullHandler())
+logging.getLogger("nanosdk").addHandler(logging.NullHandler())
 
 __all__ = [
     "NOT_GIVEN",
@@ -86,7 +86,7 @@ __all__ = [
     "Json",
     "LinkHeader",
     "Location",
-    "NanoAPIError",
+    "NanoSDKError",
     "NextPage",
     "Offset",
     "Page",

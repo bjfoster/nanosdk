@@ -1,4 +1,4 @@
-"""nanoapi.codegen: generate clients from OpenAPI specs, then use and type-check them."""
+"""nanosdk.codegen: generate clients from OpenAPI specs, then use and type-check them."""
 
 import importlib
 import json
@@ -16,9 +16,9 @@ import pytest
 from openapi_spec_validator import validate
 from pydantic import ValidationError
 
-import nanoapi
-from nanoapi.codegen import SpecError, check, generate, load_spec
-from nanoapi.codegen.cli import main
+import nanosdk
+from nanosdk.codegen import SpecError, check, generate, load_spec
+from nanosdk.codegen.cli import main
 
 FIXTURES = Path(__file__).parent / "fixtures"
 KITCHEN = FIXTURES / "kitchen_sink.yml"
@@ -129,7 +129,7 @@ def test_inline_response_text_dict_and_multipart(kitchen: ModuleType) -> None:
 def test_error_model_reserved_names_and_deprecated(kitchen: ModuleType) -> None:
     transport, _ = serve(httpx.Response(404, json={"message": "nope", "code": 7}))
     api = kitchen.Kitchen(transport=transport)
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.get_item(item_id=9)
     assert info.value.error == kitchen.models.Error(message="nope", code=7)
 
@@ -221,8 +221,8 @@ def test_rename_skip_and_include_deprecated(tmp_path: Path) -> None:
     assert "class StatsParams" not in source
     models = (tmp_path / "renamed_gen" / "models.py").read_text()
     assert "class StatsResponse(BaseModel)" in models  # skipped routes keep their models
-    assert "    items = nanoapi.get(" in source
-    assert "    delete_item = nanoapi.delete(" in source
+    assert "    items = nanosdk.get(" in source
+    assert "    delete_item = nanosdk.delete(" in source
     assert "Deprecated." in source
 
 
@@ -232,7 +232,7 @@ def test_transform_fixes_the_spec_first(tmp_path: Path) -> None:
         return spec
 
     generate(KITCHEN, tmp_path / "t_gen", name="Kitchen", transform=add_operation_id)
-    assert "    item_stats = nanoapi.get(" in (tmp_path / "t_gen" / "client.py").read_text()
+    assert "    item_stats = nanosdk.get(" in (tmp_path / "t_gen" / "client.py").read_text()
 
 
 @pytest.mark.parametrize(
@@ -274,7 +274,7 @@ def test_cli(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        "[tool.nanoapi.codegen]\n"
+        "[tool.nanosdk.codegen]\n"
         f"spec = {str(KITCHEN)!r}\n"
         'output = "cli_gen"\n'
         'name = "Kitchen"\n'
@@ -282,7 +282,7 @@ def test_cli(
     )
     main(["generate"])
     assert "wrote cli_gen/client.py" in capsys.readouterr().out
-    assert "    items = nanoapi.get(" in (tmp_path / "cli_gen/client.py").read_text()
+    assert "    items = nanosdk.get(" in (tmp_path / "cli_gen/client.py").read_text()
 
     main(["generate", "--check"])
     assert "up to date" in capsys.readouterr().out
@@ -388,7 +388,7 @@ def test_lenient_accepts_responses_that_break_the_spec(tmp_path: Path) -> None:
 
 
 def test_naming() -> None:
-    from nanoapi.codegen._openapi import field_name, snake
+    from nanosdk.codegen._openapi import field_name, snake
 
     assert snake("listAPIs") == "list_apis"  # APIs.guru
     assert snake("getURLsForRepo") == "get_urls_for_repo"

@@ -1,30 +1,30 @@
-::: nanoapi.client
+::: nanosdk.client
     options:
       members: false
       show_root_heading: true
       show_root_full_path: true
       heading_level: 1
 
-::: nanoapi.Client
+::: nanosdk.Client
     options:
       show_bases: false  # the shared base class is private
       members: [with_options, close, _prepare_request, _process_response, _raise_for_status, _retry_policy]
 
-::: nanoapi.AsyncClient
+::: nanosdk.AsyncClient
     options:
       show_bases: false  # the shared base class is private
       members: [with_options, aclose, _prepare_request, _process_response, _raise_for_status, _retry_policy]
 
-::: nanoapi.http_client
+::: nanosdk.http_client
 
 ## Bound routes
 
 What you get when you access a route on a client instance (`api.get_user`).
 
-::: nanoapi.BoundRoute
+::: nanosdk.BoundRoute
 
-::: nanoapi.BoundPaginatedRoute
+::: nanosdk.BoundPaginatedRoute
 
-::: nanoapi.AsyncBoundRoute
+::: nanosdk.AsyncBoundRoute
 
-::: nanoapi.AsyncBoundPaginatedRoute
+::: nanosdk.AsyncBoundPaginatedRoute

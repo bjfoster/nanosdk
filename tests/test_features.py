@@ -10,8 +10,8 @@ import polars as pl
 import pytest
 from pydantic import BaseModel, RootModel, ValidationError
 
-import nanoapi
-from nanoapi.auth import ApiKey, Bearer, OAuth2ClientCredentials
+import nanosdk
+from nanosdk.auth import ApiKey, Bearer, OAuth2ClientCredentials
 
 type Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -39,29 +39,29 @@ def posts(*ids: int) -> list[dict[str, Any]]:
     return [{"id": i, "title": f"t{i}"} for i in ids]
 
 
-NO_WAIT = nanoapi.Retry(backoff=0, jitter=0)
+NO_WAIT = nanosdk.Retry(backoff=0, jitter=0)
 
 
 # --- hooks & meta ---------------------------------------------------------------
 
 
-class Hooked(nanoapi.Client):
-    public = nanoapi.get("/public", response=list[Post], meta={"auth": False})
-    private = nanoapi.get("/private", response=list[Post])
+class Hooked(nanosdk.Client):
+    public = nanosdk.get("/public", response=list[Post], meta={"auth": False})
+    private = nanosdk.get("/private", response=list[Post])
 
     def __init__(self, handler: Handler) -> None:
         super().__init__("https://api.test", transport=transport(handler))
         self.seen: list[str] = []
 
     def _prepare_request(
-        self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
+        self, request: httpx.Request, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Request:
         if route.meta.get("auth", True):
             request.headers["X-Signed"] = "yes"
         return request
 
     def _process_response(
-        self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
+        self, response: httpx.Response, route: nanosdk.Route[Any, Any, Any]
     ) -> httpx.Response:
         self.seen.append(f"{route.name}:{response.status_code}")
         # unwrap an {"data": ...} envelope
@@ -84,11 +84,11 @@ def test_hooks_see_route_and_meta() -> None:
 
 
 async def test_async_hooks() -> None:
-    class Api(nanoapi.AsyncClient):
-        list_posts = nanoapi.get("/posts", response=list[Post])
+    class Api(nanosdk.AsyncClient):
+        list_posts = nanosdk.get("/posts", response=list[Post])
 
         async def _prepare_request(
-            self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
+            self, request: httpx.Request, route: nanosdk.Route[Any, Any, Any]
         ) -> httpx.Request:
             request.headers["X-Route"] = route.name or ""
             return request
@@ -113,12 +113,12 @@ def flaky(*statuses: int, headers: dict[str, str] | None = None) -> Handler:
     return handler
 
 
-class RetryApi(nanoapi.Client):
-    list_posts = nanoapi.get("/posts", response=list[Post])
-    create = nanoapi.post("/posts", response=list[Post])
-    fragile = nanoapi.get("/fragile", response=list[Post], meta={"retry": False})
+class RetryApi(nanosdk.Client):
+    list_posts = nanosdk.get("/posts", response=list[Post])
+    create = nanosdk.post("/posts", response=list[Post])
+    fragile = nanosdk.get("/fragile", response=list[Post], meta={"retry": False})
 
-    def _retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
+    def _retry_policy(self, route: nanosdk.Route[Any, Any, Any]) -> nanosdk.Retry | None:
         return None if route.meta.get("retry") is False else super()._retry_policy(route)
 
 
@@ -134,7 +134,7 @@ def test_gives_up_after_max_retries() -> None:
     api = RetryApi(
         "https://api.test", retry=NO_WAIT, transport=transport(flaky(503, 503, 503), log)
     )
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.list_posts()
     assert info.value.status_code == 503
     assert len(log) == 3
@@ -143,9 +143,9 @@ def test_gives_up_after_max_retries() -> None:
 def test_non_idempotent_and_opted_out_routes_are_not_retried() -> None:
     log: list[httpx.Request] = []
     api = RetryApi("https://api.test", retry=NO_WAIT, transport=transport(flaky(503, 503), log))
-    with pytest.raises(nanoapi.APIStatusError):
+    with pytest.raises(nanosdk.APIStatusError):
         api.create()
-    with pytest.raises(nanoapi.APIStatusError):
+    with pytest.raises(nanosdk.APIStatusError):
         api.fragile()
     assert [r.method for r in log] == ["POST", "GET"]
 
@@ -153,7 +153,7 @@ def test_non_idempotent_and_opted_out_routes_are_not_retried() -> None:
 def test_with_options_can_disable_retry() -> None:
     log: list[httpx.Request] = []
     api = RetryApi("https://api.test", retry=NO_WAIT, transport=transport(flaky(503), log))
-    with pytest.raises(nanoapi.APIStatusError):
+    with pytest.raises(nanosdk.APIStatusError):
         api.with_options(retry=None).list_posts()
     assert len(log) == 1
 
@@ -174,8 +174,8 @@ def test_retries_connection_errors() -> None:
 
 
 async def test_async_retry() -> None:
-    class Api(nanoapi.AsyncClient):
-        list_posts = nanoapi.get("/posts", response=list[Post])
+    class Api(nanosdk.AsyncClient):
+        list_posts = nanosdk.get("/posts", response=list[Post])
 
     log: list[httpx.Request] = []
     api = Api("https://api.test", retry=NO_WAIT, transport=transport(flaky(502), log))
@@ -184,13 +184,13 @@ async def test_async_retry() -> None:
 
 
 def test_retry_delay() -> None:
-    retry = nanoapi.Retry(backoff=1, jitter=0, max_delay=5)
+    retry = nanosdk.Retry(backoff=1, jitter=0, max_delay=5)
     assert [retry.delay(n, None) for n in range(4)] == [1, 2, 4, 5]
     assert retry.delay(0, httpx.Response(429, headers={"Retry-After": "3"})) == 3
     assert retry.delay(0, httpx.Response(429, headers={"Retry-After": "99"})) == 5
     later = format_datetime(datetime.now(UTC) + timedelta(seconds=2), usegmt=True)
     assert 0 < retry.delay(0, httpx.Response(429, headers={"Retry-After": later})) <= 2
-    jittery = nanoapi.Retry(backoff=1, jitter=0.5)
+    jittery = nanosdk.Retry(backoff=1, jitter=0.5)
     assert all(0.5 <= jittery.delay(0, None) <= 1.5 for _ in range(50))
 
 
@@ -198,11 +198,11 @@ def test_retry_delay() -> None:
 
 
 def test_map_and_frames() -> None:
-    class Api(nanoapi.Client):
-        count = nanoapi.get("/posts", response=list[Post]).map(len)
-        frame = nanoapi.get("/posts", response=list[Post]).map(nanoapi.frames.polars)
-        root_frame = nanoapi.get("/posts", response=Posts).map(nanoapi.frames.pandas)
-        chained = nanoapi.get("/posts", response=list[Post]).map(len).map(str)
+    class Api(nanosdk.Client):
+        count = nanosdk.get("/posts", response=list[Post]).map(len)
+        frame = nanosdk.get("/posts", response=list[Post]).map(nanosdk.frames.polars)
+        root_frame = nanosdk.get("/posts", response=Posts).map(nanosdk.frames.pandas)
+        chained = nanosdk.get("/posts", response=list[Post]).map(len).map(str)
 
     api = Api(
         "https://api.test", transport=transport(lambda r: httpx.Response(200, json=posts(1, 2)))
@@ -222,12 +222,12 @@ def test_records() -> None:
     class Nested(BaseModel):
         post: Post
 
-    assert nanoapi.frames.records(Post(id=1)) == [{"id": 1, "title": ""}]
-    assert nanoapi.frames.records({"a": 1}) == [{"a": 1}]
-    assert nanoapi.frames.records([Nested(post=Post(id=2))]) == [{"post": {"id": 2, "title": ""}}]
-    assert nanoapi.frames.polars([]).is_empty()
+    assert nanosdk.frames.records(Post(id=1)) == [{"id": 1, "title": ""}]
+    assert nanosdk.frames.records({"a": 1}) == [{"a": 1}]
+    assert nanosdk.frames.records([Nested(post=Post(id=2))]) == [{"post": {"id": 2, "title": ""}}]
+    assert nanosdk.frames.polars([]).is_empty()
     with pytest.raises(TypeError, match="per row"):
-        nanoapi.frames.records([1])  # type: ignore[list-item]  # pyright: ignore[reportArgumentType]
+        nanosdk.frames.records([1])  # type: ignore[list-item]  # pyright: ignore[reportArgumentType]
 
 
 # --- pagination -----------------------------------------------------------------
@@ -251,27 +251,27 @@ class ByPage(BaseModel):
     page: int | None = None
 
 
-class Paged(nanoapi.Routes, prefix="/v1"):
-    by_cursor = nanoapi.get("/cursor", request=ByCursor, response=PostPage).paginate(
-        nanoapi.Cursor("meta.next"), items=lambda p: p.data
+class Paged(nanosdk.Routes, prefix="/v1"):
+    by_cursor = nanosdk.get("/cursor", request=ByCursor, response=PostPage).paginate(
+        nanosdk.Cursor("meta.next"), items=lambda p: p.data
     )
-    by_offset = nanoapi.get("/offset", request=ByOffset, response=list[Post]).paginate(
-        nanoapi.Offset()
+    by_offset = nanosdk.get("/offset", request=ByOffset, response=list[Post]).paginate(
+        nanosdk.Offset()
     )
-    by_page = nanoapi.get("/page", request=ByPage, response=list[Post]).paginate(
-        nanoapi.PageNumber()
+    by_page = nanosdk.get("/page", request=ByPage, response=list[Post]).paginate(
+        nanosdk.PageNumber()
     )
-    by_link = nanoapi.get("/link", response=list[Post]).paginate(nanoapi.LinkHeader())
-    stuck = nanoapi.get("/stuck", request=ByCursor, response=list[Post]).paginate(
+    by_link = nanosdk.get("/link", response=list[Post]).paginate(nanosdk.LinkHeader())
+    stuck = nanosdk.get("/stuck", request=ByCursor, response=list[Post]).paginate(
         lambda page: page.request
     )
 
 
-class PagedApi(Paged, nanoapi.Client):
+class PagedApi(Paged, nanosdk.Client):
     pass
 
 
-class AsyncPagedApi(Paged, nanoapi.AsyncClient):
+class AsyncPagedApi(Paged, nanosdk.AsyncClient):
     pass
 
 
@@ -369,10 +369,10 @@ def test_ad_hoc_pagination_and_prefix(paged: PagedApi) -> None:
 
 
 def test_bad_pagination_field() -> None:
-    route = nanoapi.get("/v1/offset", request=ByPage, response=list[Post]).paginate(
-        nanoapi.Offset()
+    route = nanosdk.get("/v1/offset", request=ByPage, response=list[Post]).paginate(
+        nanosdk.Offset()
     )
-    client = nanoapi.Client(
+    client = nanosdk.Client(
         "https://api.test", transport=transport(lambda r: httpx.Response(200, json=posts(1)))
     )
     with pytest.raises(TypeError, match="no field 'offset'"):
@@ -381,7 +381,7 @@ def test_bad_pagination_field() -> None:
 
 def test_pagination_errors_surface(log: list[httpx.Request]) -> None:
     api = PagedApi("https://api.test", transport=transport(lambda r: httpx.Response(500), log))
-    with pytest.raises(nanoapi.APIStatusError):
+    with pytest.raises(nanosdk.APIStatusError):
         list(api.by_page.iter())
 
 
@@ -399,8 +399,8 @@ def echo(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"headers": dict(request.headers), "url": str(request.url)})
 
 
-class Echo(nanoapi.Client):
-    whoami = nanoapi.get("/me", response=dict[str, Any])
+class Echo(nanosdk.Client):
+    whoami = nanosdk.get("/me", response=dict[str, Any])
 
 
 def test_bearer_static_and_callable() -> None:
@@ -484,7 +484,7 @@ def test_oauth_token_errors() -> None:
         return httpx.Response(400, json={"error": "invalid_client"})
 
     api = Echo("https://api.test", auth=oauth(), transport=transport(deny))
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.whoami()
     assert info.value.body == {"error": "invalid_client"}
     with pytest.raises(ValueError, match="absolute"):
@@ -492,8 +492,8 @@ def test_oauth_token_errors() -> None:
 
 
 async def test_oauth_async() -> None:
-    class AsyncEcho(nanoapi.AsyncClient):
-        whoami = nanoapi.get("/me", response=dict[str, Any])
+    class AsyncEcho(nanosdk.AsyncClient):
+        whoami = nanosdk.get("/me", response=dict[str, Any])
 
     server = TokenServer()
     api = AsyncEcho("https://api.test", auth=oauth(), transport=transport(server))
@@ -504,7 +504,7 @@ async def test_oauth_async() -> None:
 
 def test_meta_is_copied_not_shared() -> None:
     meta = {"a": 1}
-    route = nanoapi.get("/x", meta=meta)
+    route = nanosdk.get("/x", meta=meta)
     meta["a"] = 2
     assert route.meta == {"a": 1}
     assert json.dumps(route.map(lambda r: r).meta) == '{"a": 1}'

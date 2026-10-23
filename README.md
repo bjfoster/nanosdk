@@ -1,13 +1,13 @@
-# nanoapi
+# nanosdk
 
 A tiny, fully typed HTTP client core built on **httpx** + **pydantic**.
-You declare routes and models; nanoapi gives you a sync *and* async client whose
+You declare routes and models; nanosdk gives you a sync *and* async client whose
 methods are typed end to end — arguments come from the request model's
 constructor, return values from the response type.
 
 ```python
 from pydantic import BaseModel
-import nanoapi
+import nanosdk
 
 class User(BaseModel):
     id: int
@@ -16,8 +16,8 @@ class User(BaseModel):
 class GetUser(BaseModel):
     username: str
 
-class GitHub(nanoapi.Client):
-    get_user = nanoapi.get("/users/{username}", request=GetUser, response=User)
+class GitHub(nanosdk.Client):
+    get_user = nanosdk.get("/users/{username}", request=GetUser, response=User)
 
 with GitHub("https://api.github.com") as gh:
     user = gh.get_user(username="octocat")   # -> User   (username: str is checked)
@@ -41,10 +41,10 @@ Python 3.13+, httpx ≥ 0.27, pydantic ≥ 2.6.
 ## Declaring routes
 
 ```python
-nanoapi.get(path, request=Model, response=Type, headers={...}, exclude_unset=None, meta={...})
+nanosdk.get(path, request=Model, response=Type, headers={...}, exclude_unset=None, meta={...})
 ```
 
-`get / post / put / patch / delete / head / options`, plus `nanoapi.route("PROPFIND")` for anything else.
+`get / post / put / patch / delete / head / options`, plus `nanosdk.route("PROPFIND")` for anything else.
 
 | `request=`            | call signature                |
 |-----------------------|-------------------------------|
@@ -71,7 +71,7 @@ Override with `Annotated` markers:
 
 ```python
 from typing import Annotated
-from nanoapi import Path, Query, Header, Json, Body, Form, File
+from nanosdk import Path, Query, Header, Json, Body, Form, File
 
 class UploadAvatar(BaseModel):
     user_id: Annotated[int, Path()]
@@ -94,16 +94,16 @@ and nothing else; pass `exclude_unset=` on the route to change that.
 
 ## Grouping and reuse
 
-`nanoapi.Routes` is a mixin for groups of routes, with an optional prefix. Mix the
+`nanosdk.Routes` is a mixin for groups of routes, with an optional prefix. Mix the
 same group into a sync and an async client:
 
 ```python
-class Users(nanoapi.Routes, prefix="/users"):
-    get = nanoapi.get("/{user_id}", request=GetUser, response=User)
-    list = nanoapi.get("", response=list[User])
+class Users(nanosdk.Routes, prefix="/users"):
+    get = nanosdk.get("/{user_id}", request=GetUser, response=User)
+    list = nanosdk.get("", response=list[User])
 
-class Api(Users, Billing, nanoapi.Client): ...
-class AsyncApi(Users, Billing, nanoapi.AsyncClient): ...
+class Api(Users, Billing, nanosdk.Client): ...
+class AsyncApi(Users, Billing, nanosdk.AsyncClient): ...
 
 user = Api(url).get(user_id=1)               # User
 user = await AsyncApi(url).get(user_id=1)    # User
@@ -112,8 +112,8 @@ user = await AsyncApi(url).get(user_id=1)    # User
 Or skip the subclass and bind a route to any client:
 
 ```python
-get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
-client = nanoapi.Client("https://api.example.com")
+get_user = nanosdk.get("/users/{user_id}", request=GetUser, response=User)
+client = nanosdk.Client("https://api.example.com")
 get_user.bind(client)(user_id=1)               # -> User
 get_user.bind(client).send(GetUser(user_id=1)) # -> User
 ```
@@ -122,10 +122,10 @@ get_user.bind(client).send(GetUser(user_id=1)) # -> User
 
 Your routes, plus `with_options()`, `close()` (`aclose()` on `AsyncClient`) and the
 context-manager protocol: nothing else, so autocomplete on `api.` lists the API you
-declared. nanoapi's own machinery is underscored, and declaring a route whose name
+declared. nanosdk's own machinery is underscored, and declaring a route whose name
 collides with one of the client's attributes (`close`, `with_options`, a hook, ...)
 raises `TypeError` when the class is defined. For the underlying httpx client, use
-`nanoapi.http_client(api)`.
+`nanosdk.http_client(api)`.
 
 ## On a bound route
 
@@ -142,9 +142,9 @@ api.get_user.build_request(user_id=1)   # httpx.Request, not sent
 api = Api(
     "https://api.example.com/v2",
     headers={"User-Agent": "my-sdk/1.0"},
-    auth=nanoapi.auth.Bearer(token),  # or ("user", "pass"), or any httpx.Auth
+    auth=nanosdk.auth.Bearer(token),  # or ("user", "pass"), or any httpx.Auth
     timeout=10,
-    retry=nanoapi.Retry(),            # retry 408/429/502/503/504 + connection errors
+    retry=nanosdk.Retry(),            # retry 408/429/502/503/504 + connection errors
     error_model=ApiError,             # parse 4xx/5xx bodies into APIStatusError.error
     transport=httpx.HTTPTransport(retries=3),   # any other httpx.Client kwarg
 )
@@ -158,10 +158,10 @@ scoped = api.with_options(headers={"Authorization": f"Bearer {tok}"}, timeout=60
 
 ## Auth
 
-`nanoapi.auth` has `httpx.Auth` implementations that work with sync and async clients:
+`nanosdk.auth` has `httpx.Auth` implementations that work with sync and async clients:
 
 ```python
-from nanoapi.auth import ApiKey, Bearer, OAuth2ClientCredentials
+from nanosdk.auth import ApiKey, Bearer, OAuth2ClientCredentials
 
 Bearer("tok")                          # Authorization: Bearer tok
 Bearer(lambda: vault.read("token"))    # called per request
@@ -177,14 +177,14 @@ OAuth2ClientCredentials(
 request from the current `Page` (`.request`, `.data`, `.items`, `.response`):
 
 ```python
-class Posts(nanoapi.Routes, prefix="/posts"):
+class Posts(nanosdk.Routes, prefix="/posts"):
     # response is a list -> its items are the page's items
-    by_offset = nanoapi.get("", request=ListPosts, response=list[Post]).paginate(
-        nanoapi.Offset("offset", limit="limit")    # stops on an empty or short page
+    by_offset = nanosdk.get("", request=ListPosts, response=list[Post]).paginate(
+        nanosdk.Offset("offset", limit="limit")    # stops on an empty or short page
     )
     # response wraps the list -> say where the items are
-    by_cursor = nanoapi.get("/feed", request=Feed, response=FeedPage).paginate(
-        nanoapi.Cursor("meta.next_cursor", param="cursor"), items=lambda page: page.data
+    by_cursor = nanosdk.get("/feed", request=Feed, response=FeedPage).paginate(
+        nanosdk.Cursor("meta.next_cursor", param="cursor"), items=lambda page: page.data
     )
 
 api.by_offset(limit=50)              # list[Post]: just the first page, as before
@@ -205,13 +205,13 @@ request twice stops instead of looping forever.
 `.map(fn)` runs `fn` on the decoded response; the route's return type follows:
 
 ```python
-count = nanoapi.get("/posts", response=list[Post]).map(len)                    # -> int
-frame = nanoapi.get("/posts", response=list[Post]).map(nanoapi.frames.polars)  # -> pl.DataFrame
+count = nanosdk.get("/posts", response=list[Post]).map(len)                    # -> int
+frame = nanosdk.get("/posts", response=list[Post]).map(nanosdk.frames.polars)  # -> pl.DataFrame
 ```
 
-`nanoapi.frames.polars` / `.pandas` (extras: `pip install "nanoapi[polars]"`) turn
+`nanosdk.frames.polars` / `.pandas` (extras: `pip install "nanosdk[polars]"`) turn
 models, dicts, or any iterable of them into a DataFrame, so they also work on
-pagination: `nanoapi.frames.polars(api.by_offset.iter())`. `frames.records` gives
+pagination: `nanosdk.frames.polars(api.by_offset.iter())`. `frames.records` gives
 the plain-dict rows.
 
 ## Custom behaviour
@@ -220,8 +220,8 @@ Subclass the client and override any of these hooks. They're underscored so they
 stay out of the client's public namespace, next to your routes:
 
 ```python
-class Api(nanoapi.Client):
-    public = nanoapi.get("/status", response=Status, meta={"auth": False})
+class Api(nanosdk.Client):
+    public = nanosdk.get("/status", response=Status, meta={"auth": False})
 
     def _prepare_request(self, request, route):    # every attempt: sign, log, rewrite
         if route.meta.get("auth", True):
@@ -245,15 +245,15 @@ POST isn't retried unless you add it to `methods`.
 
 ## Generating a client from OpenAPI
 
-`nanoapi generate` turns an OpenAPI 3.x document into a typed client package: pydantic
+`nanosdk generate` turns an OpenAPI 3.x document into a typed client package: pydantic
 models (via datamodel-codegen), a parameter model per operation, a `Routes` group per
 tag, and sync and async clients. Everything stays typed, because it's ordinary
 generated source that type checkers read:
 
 ```bash
-pip install "nanoapi[codegen]"
-nanoapi generate openapi.yml -o src/my_sdk/_generated --name MyApiBase
-nanoapi generate openapi.yml -o src/my_sdk/_generated --name MyApiBase --check   # CI
+pip install "nanosdk[codegen]"
+nanosdk generate openapi.yml -o src/my_sdk/_generated --name MyApiBase
+nanosdk generate openapi.yml -o src/my_sdk/_generated --name MyApiBase --check   # CI
 ```
 
 ```python
@@ -275,10 +275,10 @@ pet = api.get_pet_by_id(pet_id=1)          # -> Pet; arguments typed from the sp
   add auth, hooks and conventions there, and `skip` operations whose parameters you'd
   rather write by hand (their models are still generated).
 
-Settings can live in `pyproject.toml` (then it's just `nanoapi generate`):
+Settings can live in `pyproject.toml` (then it's just `nanosdk generate`):
 
 ```toml
-[tool.nanoapi.codegen]
+[tool.nanosdk.codegen]
 spec = "openapi.yml"
 output = "src/my_sdk/_generated"
 name = "MyApiBase"
@@ -293,34 +293,34 @@ this way.
 
 ## Logging
 
-nanoapi logs to the standard `logging` module under the `nanoapi` logger and prints
+nanosdk logs to the standard `logging` module under the `nanosdk` logger and prints
 nothing until your application configures logging:
 
 ```python
 import logging
 logging.basicConfig(level=logging.WARNING)                 # retries only
-logging.getLogger("nanoapi").setLevel(logging.DEBUG)       # every request too
+logging.getLogger("nanosdk").setLevel(logging.DEBUG)       # every request too
 ```
 
 | Level | Logger | What |
 |---|---|---|
-| DEBUG | `nanoapi` | every response: `GET https://api.example.com/users/1 -> 200 OK in 84 ms (get_user, attempt 1)`, and transport failures |
-| DEBUG | `nanoapi` | each page fetched by `.iter()` / `.pages()` |
-| WARNING | `nanoapi` | each retry: `Retrying GET ... in 1.03s after 503 Service Unavailable (get_user, retry 1 of 2)` |
-| WARNING | `nanoapi` | pagination stopped because the strategy asked for the same page again |
-| DEBUG / INFO | `nanoapi.auth` | OAuth token fetches; a token refused with 401 and replaced |
+| DEBUG | `nanosdk` | every response: `GET https://api.example.com/users/1 -> 200 OK in 84 ms (get_user, attempt 1)`, and transport failures |
+| DEBUG | `nanosdk` | each page fetched by `.iter()` / `.pages()` |
+| WARNING | `nanosdk` | each retry: `Retrying GET ... in 1.03s after 503 Service Unavailable (get_user, retry 1 of 2)` |
+| WARNING | `nanosdk` | pagination stopped because the strategy asked for the same page again |
+| DEBUG / INFO | `nanosdk.auth` | OAuth token fetches; a token refused with 401 and replaced |
 
 Records carry structured fields for JSON log formatters: `route`, `method`, `url`,
 `attempt`, plus `status_code`, `elapsed_ms` or `retry_delay` where they apply.
-URLs are logged as nanoapi built them, *before* auth is applied, and headers and bodies
-are never logged, so tokens and API keys stay out of nanoapi's logs. (httpx itself logs
+URLs are logged as nanosdk built them, *before* auth is applied, and headers and bodies
+are never logged, so tokens and API keys stay out of nanosdk's logs. (httpx itself logs
 full URLs at INFO on the `httpx` logger, so prefer header API keys over query-string ones.)
 
 An SDK can log under its own name: `Client(..., logger=logging.getLogger("my_sdk"))`.
 
 ## Errors
 
-All inherit `nanoapi.NanoAPIError`:
+All inherit `nanosdk.NanoSDKError`:
 
 - `APIStatusError` — 4xx/5xx; has `.status_code`, `.body` (JSON or text), `.error` (validated `error_model`), `.response`
 - `APIConnectionError` / `APITimeoutError` — transport failures

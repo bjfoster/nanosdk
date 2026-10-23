@@ -1,6 +1,6 @@
 """Regenerate ``src/realtime_trains/_generated`` from the Realtime Trains OpenAPI spec.
 
-    uv run scripts/generate.py           # nanoapi generate, with the settings in pyproject
+    uv run scripts/generate.py           # nanosdk generate, with the settings in pyproject
     uv run scripts/generate.py --fetch   # download the latest upstream spec first
     uv run scripts/generate.py --check   # CI: fail if _generated/ is out of date
 
@@ -16,7 +16,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from nanoapi.codegen import cli
+from nanosdk.codegen import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM_URL = "https://realtimetrains.github.io/api-specification/specification/main.yml"
@@ -73,7 +73,7 @@ def _parses_as(fmt: str, schema: dict[str, Any]) -> bool:
 
 
 def main() -> None:
-    """Optionally fetch the upstream spec, then run `nanoapi generate`."""
+    """Optionally fetch the upstream spec, then run `nanosdk generate`."""
     parser = argparse.ArgumentParser(description="Regenerate the client from the spec.")
     parser.add_argument("--fetch", action="store_true", help="download the upstream spec first")
     parser.add_argument("--check", action="store_true", help="fail if the output is stale")

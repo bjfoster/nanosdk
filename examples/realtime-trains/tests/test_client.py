@@ -7,7 +7,7 @@ import polars as pl
 import pytest
 from pydantic import ValidationError
 
-import nanoapi
+import nanosdk
 from realtime_trains import (
     AsyncRealtimeTrains,
     InvalidQuery,
@@ -124,7 +124,7 @@ def test_errors_map_to_exceptions(rtt: RealtimeTrains, fake: FakeRealtimeTrains)
     assert invalid.value.body == {"error": "unknown location 'XYZ'"}
     with pytest.raises(NotFound):
         rtt.service(unique_identity="gb-nr:NOPE:2026-03-02")
-    with pytest.raises(nanoapi.APIStatusError):  # the base class still catches them
+    with pytest.raises(nanosdk.APIStatusError):  # the base class still catches them
         rtt.service(identity="NOPE", departure_date=NOW.date())
 
     bad = RealtimeTrains(access_token="wrong", transport=fake.transport())
@@ -175,7 +175,7 @@ def test_retries_rate_limiting(fake: FakeRealtimeTrains) -> None:
 
 
 def test_board_to_dataframe(rtt: RealtimeTrains) -> None:
-    df = nanoapi.frames.polars(rtt.board(code="CLJ"))
+    df = nanosdk.frames.polars(rtt.board(code="CLJ"))
     assert isinstance(df, pl.DataFrame)
     assert {"scheduled", "destination", "status", "delay"} <= set(df.columns)
 
@@ -216,7 +216,7 @@ def test_revoked_token_is_replaced_and_the_request_retried(fake: FakeRealtimeTra
 
 def test_bad_refresh_token(fake: FakeRealtimeTrains) -> None:
     rtt = RealtimeTrains(refresh_token="nope", transport=fake.transport())
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         rtt.info()
     assert info.value.request.url.path == "/api/get_access_token"
 
@@ -229,7 +229,7 @@ def test_exactly_one_token(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("RTT_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("RTT_REFRESH_TOKEN", "from-env")
-    assert isinstance(nanoapi.http_client(RealtimeTrains.from_env()).auth, RefreshTokenAuth)
+    assert isinstance(nanosdk.http_client(RealtimeTrains.from_env()).auth, RefreshTokenAuth)
 
 
 # --- async and CLI -------------------------------------------------------------------

@@ -1,6 +1,6 @@
-"""Responses straight into DataFrames with ``.map()`` and ``nanoapi.frames``.
+"""Responses straight into DataFrames with ``.map()`` and ``nanosdk.frames``.
 
-Run:  pip install "nanoapi[polars,pandas]"
+Run:  pip install "nanosdk[polars,pandas]"
       python examples/dataframes.py
 """
 
@@ -11,8 +11,8 @@ import pandas as pd
 import polars as pl
 from pydantic import BaseModel, Field
 
-import nanoapi
-from nanoapi import frames
+import nanosdk
+from nanosdk import frames
 
 # --- models (wire names are camelCase; DataFrame columns use the Python names) --
 
@@ -33,8 +33,8 @@ class Comment(BaseModel):
 
 
 class PageParams(BaseModel):
-    page: Annotated[int, nanoapi.Query(alias="_page")] = 1
-    limit: Annotated[int, nanoapi.Query(alias="_limit")] = 100
+    page: Annotated[int, nanosdk.Query(alias="_page")] = 1
+    limit: Annotated[int, nanosdk.Query(alias="_limit")] = 100
 
 
 # --- any function works as a map; its return type becomes the route's ----------
@@ -51,13 +51,13 @@ def completion_by_user(todos: list[Todo]) -> dict[int, float]:
 # --- client -----------------------------------------------------------------
 
 
-class Placeholder(nanoapi.Client):
-    todos = nanoapi.get("/todos", response=list[Todo])  # -> list[Todo]
+class Placeholder(nanosdk.Client):
+    todos = nanosdk.get("/todos", response=list[Todo])  # -> list[Todo]
     todos_pl = todos.map(frames.polars)  # -> pl.DataFrame
     todos_pd = todos.map(frames.pandas)  # -> pd.DataFrame
     completion = todos.map(completion_by_user)  # -> dict[int, float]
-    comments = nanoapi.get("/comments", request=PageParams, response=list[Comment]).paginate(
-        nanoapi.PageNumber("page", size="limit")
+    comments = nanosdk.get("/comments", request=PageParams, response=list[Comment]).paginate(
+        nanosdk.PageNumber("page", size="limit")
     )
 
     def __init__(self) -> None:

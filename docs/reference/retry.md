@@ -1,3 +1,3 @@
 # Retries
 
-::: nanoapi.Retry
+::: nanosdk.Retry

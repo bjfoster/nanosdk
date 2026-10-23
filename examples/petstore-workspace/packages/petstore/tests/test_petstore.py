@@ -7,8 +7,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-import nanoapi
-from nanoapi.codegen.cli import main
+import nanosdk
+from nanosdk.codegen.cli import main
 from petstore import ApiResponse, AsyncPetstore, Pet, PetStatus, Petstore
 
 PACKAGE_DIR = Path(__file__).parent.parent
@@ -75,7 +75,7 @@ def test_path_query_and_api_key() -> None:
 def test_error_bodies_parse_into_the_generated_model() -> None:
     api, _ = petstore(httpx.Response(500, json={"code": 500, "message": "boom"}))
 
-    with pytest.raises(nanoapi.APIStatusError) as info:
+    with pytest.raises(nanosdk.APIStatusError) as info:
         api.get_pet(pet_id=1)
 
     assert info.value.error == ApiResponse(code=500, message="boom")
@@ -91,6 +91,6 @@ async def test_async_client() -> None:
 def test_generated_code_is_up_to_date(monkeypatch: pytest.MonkeyPatch) -> None:
     """Fails if `_generated/` was edited by hand, or `openapi.json` or the codegen
     settings changed without regenerating. Fix: uv run --directory packages/petstore
-    nanoapi generate"""
+    nanosdk generate"""
     monkeypatch.chdir(PACKAGE_DIR)
     main(["generate", "--check"])

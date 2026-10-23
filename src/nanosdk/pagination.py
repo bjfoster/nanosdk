@@ -1,11 +1,11 @@
 """Pagination: the `Page` record and the built-in next-page strategies.
 
-Make a route iterable with [`Route.paginate`][nanoapi.Route.paginate], passing a
+Make a route iterable with [`Route.paginate`][nanosdk.Route.paginate], passing a
 strategy that picks the next request from the current page:
 
 ```python
-list_posts = nanoapi.get("/posts", request=ListPosts, response=list[Post]).paginate(
-    nanoapi.Offset("offset", limit="limit")
+list_posts = nanosdk.get("/posts", request=ListPosts, response=list[Post]).paginate(
+    nanosdk.Offset("offset", limit="limit")
 )
 for post in api.list_posts.iter(limit=50): ...
 ```
@@ -37,7 +37,7 @@ class Page[ReqT, RespT, ItemT]:
 
     Attributes:
         request: The request model that produced this page (`None` for routes without one).
-        data: The decoded response body, after any [`map`][nanoapi.Route.map].
+        data: The decoded response body, after any [`map`][nanosdk.Route.map].
         items: The page's items, as extracted by the route's `items` function.
         response: The raw `httpx.Response`, for headers such as `Link` or rate limits.
     """
@@ -61,8 +61,8 @@ class Cursor:
     Example:
         ```python
         # {"data": [...], "meta": {"next_cursor": "abc"}}  ->  ?cursor=abc
-        nanoapi.Cursor("meta.next_cursor", param="cursor")
-        nanoapi.Cursor(lambda body: body.paging.next, param="after")
+        nanosdk.Cursor("meta.next_cursor", param="cursor")
+        nanosdk.Cursor(lambda body: body.paging.next, param="after")
         ```
 
     Args:
@@ -91,7 +91,7 @@ class Offset:
     Example:
         ```python
         # ?offset=0&limit=50, ?offset=50&limit=50, ...
-        nanoapi.Offset("offset", limit="limit")
+        nanosdk.Offset("offset", limit="limit")
         ```
 
     Args:
@@ -120,7 +120,7 @@ class PageNumber:
     Example:
         ```python
         # ?page=1&per_page=100, ?page=2&per_page=100, ...
-        nanoapi.PageNumber("page", size="per_page")
+        nanosdk.PageNumber("page", size="per_page")
         ```
 
     Args:

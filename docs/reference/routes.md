@@ -1,4 +1,4 @@
-::: nanoapi.routing
+::: nanosdk.routing
     options:
       members: false
       show_root_heading: true
@@ -7,28 +7,28 @@
 
 ## Declaring routes
 
-::: nanoapi.get
+::: nanosdk.get
 
-::: nanoapi.post
+::: nanosdk.post
 
-::: nanoapi.put
+::: nanosdk.put
 
-::: nanoapi.patch
+::: nanosdk.patch
 
-::: nanoapi.delete
+::: nanosdk.delete
 
-::: nanoapi.head
+::: nanosdk.head
 
-::: nanoapi.options
+::: nanosdk.options
 
-::: nanoapi.route
+::: nanosdk.route
 
-::: nanoapi.Verb
+::: nanosdk.Verb
 
 ## Route objects
 
-::: nanoapi.Route
+::: nanosdk.Route
 
-::: nanoapi.PaginatedRoute
+::: nanosdk.PaginatedRoute
 
-::: nanoapi.Routes
+::: nanosdk.Routes

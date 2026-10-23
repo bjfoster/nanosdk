@@ -1,10 +1,10 @@
-"""`nanoapi generate`: the command-line front end of [`nanoapi.codegen`][nanoapi.codegen].
+"""`nanosdk generate`: the command-line front end of [`nanosdk.codegen`][nanosdk.codegen].
 
-Settings come from the command line, falling back to `[tool.nanoapi.codegen]` in the
+Settings come from the command line, falling back to `[tool.nanosdk.codegen]` in the
 `pyproject.toml` of the current directory:
 
 ```toml
-[tool.nanoapi.codegen]
+[tool.nanosdk.codegen]
 spec = "spec/openapi.yml"
 output = "src/my_sdk/_generated"
 name = "MyApi"
@@ -33,8 +33,8 @@ __all__ = ["main"]
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Run `nanoapi generate`."""
-    parser = argparse.ArgumentParser(prog="nanoapi", description="nanoapi tools")
+    """Run `nanosdk generate`."""
+    parser = argparse.ArgumentParser(prog="nanosdk", description="nanosdk tools")
     commands = parser.add_subparsers(dest="command", required=True)
     gen = commands.add_parser("generate", help="generate a typed client from an OpenAPI spec")
     gen.add_argument("spec", nargs="?", help="OpenAPI document (YAML or JSON)")
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> None:
     spec = args.spec or config.get("spec")
     output = args.output or config.get("output")
     if not spec or not output:
-        parser.error("need a spec and --output (or [tool.nanoapi.codegen] in pyproject.toml)")
+        parser.error("need a spec and --output (or [tool.nanosdk.codegen] in pyproject.toml)")
     rename = {str(k): str(v) for k, v in cast(dict[str, Any], config.get("rename", {})).items()}
     for item in cast(list[str], args.rename):
         key, sep, value = item.rpartition("=")
@@ -86,14 +86,14 @@ def main(argv: list[str] | None = None) -> None:
             stale = check(spec, output, **options)
             if stale:
                 print("out of date: " + ", ".join(str(p) for p in stale), file=sys.stderr)
-                print("run `nanoapi generate` to update", file=sys.stderr)
+                print("run `nanosdk generate` to update", file=sys.stderr)
                 raise SystemExit(1)
             print(f"{output} is up to date")
         else:
             for path in generate(spec, output, **options):
                 print(f"wrote {path}")
     except SpecError as exc:
-        raise SystemExit(f"nanoapi generate: {exc}") from exc
+        raise SystemExit(f"nanosdk generate: {exc}") from exc
 
 
 def _config(pyproject: Path) -> dict[str, Any]:
@@ -101,7 +101,7 @@ def _config(pyproject: Path) -> dict[str, Any]:
         return {}
     data = tomllib.loads(pyproject.read_text())
     tool = cast(dict[str, Any], data.get("tool", {}))
-    return cast(dict[str, Any], cast(dict[str, Any], tool.get("nanoapi", {})).get("codegen", {}))
+    return cast(dict[str, Any], cast(dict[str, Any], tool.get("nanosdk", {})).get("codegen", {}))
 
 
 def _load_transform(ref: str, root: Path) -> Transform:
@@ -111,7 +111,7 @@ def _load_transform(ref: str, root: Path) -> Transform:
             f"--transform expects 'file.py:function' or 'module:function', got {ref!r}"
         )
     if target.endswith(".py"):
-        spec = importlib.util.spec_from_file_location("nanoapi_transform", root / target)
+        spec = importlib.util.spec_from_file_location("nanosdk_transform", root / target)
         if spec is None or spec.loader is None:
             raise SystemExit(f"can't load {target}")
         module = importlib.util.module_from_spec(spec)
