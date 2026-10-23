@@ -176,7 +176,7 @@ def test_generated_code_passes_strict_pyright(tmp_path: Path) -> None:
     )
     config = {
         "typeCheckingMode": "strict",
-        "pythonVersion": "3.13",
+        "pythonVersion": "3.12",
         "reportUnnecessaryTypeIgnoreComment": "error",
         "exclude": ["kitchen_gen/models.py", "reg_gen/models.py"],  # datamodel-codegen's
     }
