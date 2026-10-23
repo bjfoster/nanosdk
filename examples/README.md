@@ -14,6 +14,7 @@ mode along with the library itself.
 | [`auth_flows.py`](auth_flows.py) | offline | basic, `Bearer` (static and rotating), `ApiKey` (header and query), a custom `httpx.Auth`, `with_options`, OAuth 2 client credentials with caching and refresh-on-401, async |
 | [`request_shapes.py`](request_shapes.py) | offline | where each field lands on the wire: path, query, headers, JSON, `Body()`, `RootModel`, forms, multipart files, aliases, PATCH `exclude_unset`, non-model responses |
 | [`petstore-workspace/`](petstore-workspace/README.md) | live + offline | a uv workspace with an SDK package generated from an OpenAPI spec by datamodel-codegen, a demo app that depends on it, and a test that fails if the generated models drift from the spec |
+| [`realtime-trains/`](realtime-trains/README.md) | offline (live with a token) | a complete client package for the Realtime Trains API: models generated from a spec that needs fixing first, refresh-token auth, rate-limit tracking, validation of documented constraints, a departure-board view, a CLI and a fake API for tests |
 | [`test_my_sdk.py`](test_my_sdk.py) | offline | testing your own SDK with pytest + `httpx.MockTransport`: requests, pagination, errors, timeouts, retries |
 
 ```bash

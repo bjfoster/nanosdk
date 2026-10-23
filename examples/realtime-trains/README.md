@@ -1,0 +1,141 @@
+# realtime-trains
+
+A typed Python client for the [Realtime Trains API](https://realtimetrains.github.io/api-specification/)
+(`data.rtt.io`), built on nanoapi: models generated from the OpenAPI spec, plus about 400
+lines of hand-written client.
+
+```python
+from realtime_trains import RealtimeTrains
+
+with RealtimeTrains.from_env() as rtt:          # RTT_ACCESS_TOKEN or RTT_REFRESH_TOKEN
+    for row in rtt.board(code="CLJ", filter_to="WAT"):
+        print(f"{row.scheduled:%H:%M} {row.destination:<18} {row.platform or '-':<3} {row.status}")
+```
+
+```text
+$ uv run rtt --demo board CLJ
+Time   Destination          Plat  Status      Operator
+14:44  Basingstoke          5     On time     South Western Railway
+14:45  London Waterloo      6     Exp 14:47   South Western Railway
+14:47  Reading              6     Exp 14:51   South Western Railway
+14:55  Guildford            7     Cancelled   South Western Railway
+...
+99/100 requests left this minute
+```
+
+`--demo` runs against the built-in fake API, so it works without a token. For the real
+thing, get a token at [api-portal.rtt.io](https://api-portal.rtt.io) and set
+`RTT_ACCESS_TOKEN` (long-life access token) or `RTT_REFRESH_TOKEN` (refresh token).
+**RTT doesn't allow tokens in distributed end-user apps**: proxy requests through a server.
+
+## What's covered
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `location(code=..., filter_to=..., time_from=..., ...)` | `/rtt/location` | `LocationLineUp` |
+| `board(...)` (same arguments) | `/rtt/location` | `list[BoardRow]`: one flat row per train |
+| `service(unique_identity=...)` or `service(identity=..., departure_date=...)` | `/rtt/service` | `ServiceDetail` |
+| `nr_location(...)`, `nr_service(...)` | `/gb-nr/location`, `/gb-nr/service` | Network Rail variants (headcodes, STP) |
+| `nr_allocations_by_service(...)`, `nr_allocations_by_class(...)` | `/gb-nr/allocations/*` | rolling-stock allocations |
+| `stops()`, `locations()` | `/data/*` | reference data |
+| `info()` | `/api/info` | API version and your entitlements |
+
+`AsyncRealtimeTrains` has the same methods, awaitable. The deprecated
+`/gb-nr/allocations_by_service` is left out in favour of `/gb-nr/allocations/by-service`.
+
+The client follows the spec's conventions:
+
+- **Auth**: an access token is sent as a bearer token. A refresh token is exchanged at
+  `/api/get_access_token` (`RefreshTokenAuth`), cached until a minute before its
+  `validUntil`, and replaced if the API answers 401.
+- **Versions**: `RealtimeTrains(api_version="2025-10-25")` pins the API version via the
+  `Version` header.
+- **Validation before sending**: the documented constraints are checked in the request
+  models. `time_to` and `time_window` are exclusive, the window is at most 23h59m,
+  `stp_filter` must match `^[WVSC]{1,4}$` and needs `detailed=True`, and a service needs
+  `unique_identity` *or* `identity` + `departure_date`.
+- **No services**: the API answers 204 with no body; you get an empty line-up (`[]`).
+- **Rate limits**: `rtt.rate_limits["hour"].remaining`, from the headers of the last
+  response. A 429 is retried after its `Retry-After`.
+- **Errors**: `InvalidQuery` (400), `Unauthorized` (401), `NotEntitled` (403) and
+  `NotFound` (404), all subclasses of `nanoapi.APIStatusError`.
+
+`nanoapi.frames.polars(rtt.board(code="CLJ"))` gives a DataFrame (install the `polars` extra).
+
+## Layout
+
+```
+spec/rtt-api.yml                 upstream spec, byte for byte (scripts/generate.py --fetch)
+spec/rtt-api.normalized.json     the same, with spec bugs corrected   (generated)
+scripts/generate.py              normalize + run datamodel-codegen
+src/realtime_trains/
+    models.py                    response models                     (generated)
+    client.py                    request models, routes, clients, conventions above
+    auth.py                      RefreshTokenAuth
+    board.py                     BoardRow / departure_board
+    errors.py                    exceptions
+    testing.py                   FakeRealtimeTrains: an in-memory API for tests and --demo
+    __main__.py                  the `rtt` command
+tests/
+```
+
+## Generating the models
+
+```bash
+uv run scripts/generate.py           # spec/rtt-api.yml -> normalized spec -> models.py
+uv run scripts/generate.py --fetch   # pull the latest upstream spec first
+```
+
+Codegen settings are in `[tool.datamodel-codegen]` in `pyproject.toml`. Two are specific
+to this spec:
+
+- `openapi-scopes = ["schemas", "paths"]`: most response bodies are defined inline in
+  each path, not in `components`, so the default `schemas` scope would miss them. Their
+  generated names follow the path (`RttLocationGetResponse`), so `client.py` exports
+  friendlier aliases (`LocationLineUp`).
+- `output-datetime-class = "datetime"`: the API allows datetimes without an offset, which
+  the default `AwareDatetime` would reject.
+
+### Spec bugs the normalizer fixes
+
+The upstream spec doesn't generate cleanly, and one bug would break every Network Rail
+response, so `scripts/generate.py` corrects it first (each rule is unit-tested):
+
+| In the spec | Problem | Fix |
+|---|---|---|
+| `null: true` | YAML parses the key `null` as `None`, not a string; codegen crashes | add `"null"` to the type |
+| `type: null` on `uniqueIdentity` | not a valid type; examples are strings | `type: string` |
+| `oneOf: [string, null]` beside `enum` | codegen emits each enum twice (`Enum` and `Enum1`) | plain string enum (the fields are optional anyway) |
+| `trainReportingIdentity: {format: date, example: "1L40"}` | a headcode marked as a date: real responses would fail validation | drop a date format its own example contradicts |
+
+The tests also fail if `models.py` or the normalized spec are out of date with
+`spec/rtt-api.yml`.
+
+## Testing your code against it
+
+`realtime_trains.testing.FakeRealtimeTrains` is an in-memory API (a small South Western
+Railway timetable around Clapham Junction, relative to "now") that checks tokens, does the
+refresh exchange, sends rate-limit headers and returns 204/400/403/404 where the real API
+would. Its responses are built from the generated models, so they match the spec:
+
+```python
+from realtime_trains import RealtimeTrains
+from realtime_trains.testing import FakeRealtimeTrains
+
+def test_my_departures_screen():
+    fake = FakeRealtimeTrains()
+    rtt = RealtimeTrains(access_token=fake.access_token, transport=fake.transport())
+    assert render_screen(rtt, "CLJ")      # your code
+    assert fake.requests[0].url.params["code"] == "CLJ"
+```
+
+## Development
+
+```bash
+uv sync
+uv run pytest            # 28 tests, offline
+uv run pyright && uv run ty check && uv run ruff check .
+```
+
+Nothing here talks to `data.rtt.io` except `RealtimeTrains` itself, so everything above runs
+without a token.
