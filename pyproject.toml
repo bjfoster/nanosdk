@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nanosdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Typed API clients on httpx + pydantic: declare routes, or generate them from OpenAPI."
 readme = "README.md"
 requires-python = ">=3.12"

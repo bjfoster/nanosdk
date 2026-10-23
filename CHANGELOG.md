@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.1](https://github.com/bjfoster/nanosdk/compare/v0.1.0...v0.1.1) (2026-10-23)
+
+
+### Features
+
+* support Python 3.12 and 3.15 ([#4](https://github.com/bjfoster/nanosdk/issues/4)) ([406371d](https://github.com/bjfoster/nanosdk/commit/406371d0a768e84d05e33579939c245f76ce1ad8))
+
+
+### Bug fixes
+
+* honest dependency floors and a fully typed public API, enforced in CI ([#6](https://github.com/bjfoster/nanosdk/issues/6)) ([a0ecb3b](https://github.com/bjfoster/nanosdk/commit/a0ecb3b412c510fe00af3846b6166bd49d8c10e2))
+
+
+### Documentation
+
+* versioning policy, changelog page, issue and PR templates ([#7](https://github.com/bjfoster/nanosdk/issues/7)) ([bd2c177](https://github.com/bjfoster/nanosdk/commit/bd2c177dbd4d1f2121b07c7119a0b7210202bca1))
+
 ## 0.1.0 (2026-10-23)
 
 The first release of nanosdk: typed API clients on httpx and pydantic. Declare routes
