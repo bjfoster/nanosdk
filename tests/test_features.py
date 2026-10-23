@@ -53,14 +53,14 @@ class Hooked(nanoapi.Client):
         super().__init__("https://api.test", transport=transport(handler))
         self.seen: list[str] = []
 
-    def prepare_request(
+    def _prepare_request(
         self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Request:
         if route.meta.get("auth", True):
             request.headers["X-Signed"] = "yes"
         return request
 
-    def process_response(
+    def _process_response(
         self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Response:
         self.seen.append(f"{route.name}:{response.status_code}")
@@ -87,7 +87,7 @@ async def test_async_hooks() -> None:
     class Api(nanoapi.AsyncClient):
         list_posts = nanoapi.get("/posts", response=list[Post])
 
-        async def prepare_request(
+        async def _prepare_request(
             self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
         ) -> httpx.Request:
             request.headers["X-Route"] = route.name or ""
@@ -118,8 +118,8 @@ class RetryApi(nanoapi.Client):
     create = nanoapi.post("/posts", response=list[Post])
     fragile = nanoapi.get("/fragile", response=list[Post], meta={"retry": False})
 
-    def retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
-        return None if route.meta.get("retry") is False else super().retry_policy(route)
+    def _retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
+        return None if route.meta.get("retry") is False else super()._retry_policy(route)
 
 
 def test_retries_transient_statuses() -> None:
@@ -365,7 +365,7 @@ def test_stuck_pagination_stops(paged: PagedApi, log: list[httpx.Request]) -> No
 def test_ad_hoc_pagination_and_prefix(paged: PagedApi) -> None:
     assert Paged.by_offset.route.path == "/v1/offset"
     assert Paged.by_offset.route.name == "by_offset"
-    assert ids(paged.iter(Paged.by_page, page=2)) == [2, 3]
+    assert ids(Paged.by_page.bind(paged).iter(page=2)) == [2, 3]
 
 
 def test_bad_pagination_field() -> None:
@@ -376,7 +376,7 @@ def test_bad_pagination_field() -> None:
         "https://api.test", transport=transport(lambda r: httpx.Response(200, json=posts(1)))
     )
     with pytest.raises(TypeError, match="no field 'offset'"):
-        list(client.iter(route))
+        list(route.bind(client).iter())
 
 
 def test_pagination_errors_surface(log: list[httpx.Request]) -> None:

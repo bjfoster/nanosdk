@@ -30,7 +30,7 @@ class Retry:
 
     Subclass it and override [`should_retry`][nanoapi.Retry.should_retry] or
     [`delay`][nanoapi.Retry.delay] for custom rules; the client's
-    [`retry_policy`][nanoapi.Client.retry_policy] hook picks a policy per route.
+    [`_retry_policy`][nanoapi.Client._retry_policy] hook picks a policy per route.
 
     Args:
         max_retries: Retries after the first attempt (so up to `max_retries + 1` tries).

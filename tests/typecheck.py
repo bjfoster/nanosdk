@@ -56,8 +56,9 @@ def sync_usage(api: Api) -> None:
     # ad-hoc: routes as plain objects, no subclass needed
     standalone = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
     client = nanoapi.Client("https://example.com")
-    assert_type(client.call(standalone, user_id=2), User)
-    assert_type(client.send(standalone, GetUser(user_id=2)), User)
+    assert_type(standalone.bind(client)(user_id=2), User)
+    assert_type(standalone.bind(client).send(GetUser(user_id=2)), User)
+    assert_type(nanoapi.http_client(client), httpx.Client)
 
     # Errors the type checker must catch. ty models pydantic's lax coercion and
     # discarded extras, so it (rightly) accepts `user_id="nope"` and `bogus=1`.
@@ -65,6 +66,7 @@ def sync_usage(api: Api) -> None:
     api.get()  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
     api.get(user_id=1, bogus=1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
     api.list(1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[too-many-positional-arguments]
+    _ = api.send  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue, reportUnknownVariableType, reportUnknownMemberType]  # ty: ignore[unresolved-attribute]
     api.get.send(CreateUser(name="x"))  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
 
 
@@ -75,7 +77,8 @@ async def async_usage(api: AsyncApi) -> None:
     assert_type(await api.get.raw(user_id=1), httpx.Response)
 
     standalone = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
-    assert_type(await api.call(standalone, user_id=2), User)
+    assert_type(await standalone.bind(api)(user_id=2), User)
+    assert_type(nanoapi.http_client(api), httpx.AsyncClient)
 
 
 def class_access() -> None:
@@ -125,7 +128,7 @@ def paged_usage(api: PagedApi) -> None:
     assert_type(api.linked.iter(), Iterator[Post])
     assert_type(api.count(), int)
     assert_type(api.frame(), pl.DataFrame)
-    assert_type(api.iter(Posts.page, cursor="c"), Iterator[Post])
+    assert_type(Posts.page.bind(api).iter(cursor="c"), Iterator[Post])
 
     api.page.iter(limit="x")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
     api.linked.iter(1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[too-many-positional-arguments]

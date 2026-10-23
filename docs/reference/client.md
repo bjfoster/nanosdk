@@ -8,10 +8,14 @@
 ::: nanoapi.Client
     options:
       show_bases: false  # the shared base class is private
+      members: [with_options, close, _prepare_request, _process_response, _raise_for_status, _retry_policy]
 
 ::: nanoapi.AsyncClient
     options:
       show_bases: false  # the shared base class is private
+      members: [with_options, aclose, _prepare_request, _process_response, _raise_for_status, _retry_policy]
+
+::: nanoapi.http_client
 
 ## Bound routes
 

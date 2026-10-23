@@ -24,6 +24,8 @@ Everything public is importable from `nanoapi` directly, plus the
 [`nanoapi.auth`][nanoapi.auth] and [`nanoapi.frames`][nanoapi.frames] modules.
 """
 
+import logging
+
 from . import auth, frames
 from .client import (
     NOT_GIVEN,
@@ -33,6 +35,7 @@ from .client import (
     BoundPaginatedRoute,
     BoundRoute,
     Client,
+    http_client,
 )
 from .errors import (
     APIConnectionError,
@@ -60,6 +63,9 @@ from .routing import (
 )
 
 __version__ = "0.1.0"
+
+# Libraries shouldn't print unless the application configures logging.
+logging.getLogger("nanoapi").addHandler(logging.NullHandler())
 
 __all__ = [
     "NOT_GIVEN",
@@ -99,6 +105,7 @@ __all__ = [
     "frames",
     "get",
     "head",
+    "http_client",
     "options",
     "patch",
     "post",

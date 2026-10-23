@@ -229,7 +229,7 @@ def test_exactly_one_token(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("RTT_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("RTT_REFRESH_TOKEN", "from-env")
-    assert isinstance(RealtimeTrains.from_env().http.auth, RefreshTokenAuth)
+    assert isinstance(nanoapi.http_client(RealtimeTrains.from_env()).auth, RefreshTokenAuth)
 
 
 # --- async and CLI -------------------------------------------------------------------

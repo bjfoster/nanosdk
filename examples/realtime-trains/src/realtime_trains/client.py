@@ -6,6 +6,7 @@ constraints as validation), friendly names for the per-endpoint response models,
 the API's conventions for auth, versions, rate limits, empty results and errors.
 """
 
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -59,6 +60,9 @@ Stops = models.DataStopsGetResponse
 ApiInfo = models.ApiInfoGetResponse
 
 MAX_WINDOW = timedelta(hours=23, minutes=59)
+
+LOGGER = logging.getLogger("realtime_trains")
+"""Requests, responses and retries are logged here (see nanoapi's logging docs)."""
 
 
 # --- query parameters -------------------------------------------------------------
@@ -295,7 +299,7 @@ def _process(
     return response
 
 
-def _raise_for_status(response: httpx.Response) -> None:
+def _check_status(response: httpx.Response) -> None:
     if not response.is_error:
         return
     try:
@@ -347,7 +351,7 @@ class RealtimeTrains(
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         options = _client_options(base_url, access_token, refresh_token, api_version)
-        super().__init__(base_url, retry=retry, transport=transport, **options)
+        super().__init__(base_url, retry=retry, transport=transport, logger=LOGGER, **options)
         self._rate_limits: dict[str, RateLimit] = {}
 
     @classmethod
@@ -371,15 +375,15 @@ class RealtimeTrains(
         """
         return self._rate_limits
 
-    def process_response(
+    def _process_response(
         self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Record rate limits; turn "no services" (204) into an empty line-up."""
         return _process(self._rate_limits, response, route)
 
-    def raise_for_status(self, response: httpx.Response) -> None:
+    def _raise_for_status(self, response: httpx.Response) -> None:
         """Raise the matching [`realtime_trains.errors`][realtime_trains.errors] exception."""
-        _raise_for_status(response)
+        _check_status(response)
 
 
 class AsyncRealtimeTrains(
@@ -410,7 +414,7 @@ class AsyncRealtimeTrains(
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         options = _client_options(base_url, access_token, refresh_token, api_version)
-        super().__init__(base_url, retry=retry, transport=transport, **options)
+        super().__init__(base_url, retry=retry, transport=transport, logger=LOGGER, **options)
         self._rate_limits: dict[str, RateLimit] = {}
 
     @classmethod
@@ -431,12 +435,12 @@ class AsyncRealtimeTrains(
         """Your remaining allowance per period, as of the latest response."""
         return self._rate_limits
 
-    async def process_response(
+    async def _process_response(
         self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Record rate limits; turn "no services" (204) into an empty line-up."""
         return _process(self._rate_limits, response, route)
 
-    def raise_for_status(self, response: httpx.Response) -> None:
+    def _raise_for_status(self, response: httpx.Response) -> None:
         """Raise the matching [`realtime_trains.errors`][realtime_trains.errors] exception."""
-        _raise_for_status(response)
+        _check_status(response)

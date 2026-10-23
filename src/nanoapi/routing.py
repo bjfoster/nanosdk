@@ -181,6 +181,28 @@ class Route[**P, ReqT, RespT]:
         bind = getattr(instance, "_bind_route", None)
         return self if bind is None else bind(self)
 
+    @overload
+    def bind(self, client: Client) -> BoundRoute[P, ReqT, RespT]: ...
+    @overload
+    def bind(self, client: AsyncClient) -> AsyncBoundRoute[P, ReqT, RespT]: ...
+    def bind(self, client: Client | AsyncClient) -> Any:
+        """Attach the route to a client, as accessing it on a client class does.
+
+        For routes that aren't declared on the client's class:
+
+        ```python
+        get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
+        user = get_user.bind(api)(user_id=1)
+        ```
+
+        Args:
+            client: The client to send through.
+
+        Returns:
+            A bound route: call it, or use `.send()`, `.raw()`, `.build_request()`.
+        """
+        return self.__get__(client, type(client))
+
     # -- helpers ------------------------------------------------------------
 
     def _clone(self) -> Self:
@@ -674,6 +696,21 @@ class PaginatedRoute[**P, ReqT, RespT, ItemT]:
     def __get__(self, instance: object, owner: type[Any]) -> Any:
         bind = getattr(instance, "_bind_paginated", None)
         return self if bind is None else bind(self)
+
+    @overload
+    def bind(self, client: Client) -> BoundPaginatedRoute[P, ReqT, RespT, ItemT]: ...
+    @overload
+    def bind(self, client: AsyncClient) -> AsyncBoundPaginatedRoute[P, ReqT, RespT, ItemT]: ...
+    def bind(self, client: Client | AsyncClient) -> Any:
+        """Attach the paginated route to a client: `route.bind(api).iter(...)`.
+
+        Args:
+            client: The client to send through.
+
+        Returns:
+            A bound paginated route.
+        """
+        return self.__get__(client, type(client))
 
     def with_prefix(self, prefix: str) -> Self:
         """Return a copy whose underlying route has `prefix` prepended to its path."""

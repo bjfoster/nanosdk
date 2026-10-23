@@ -59,7 +59,7 @@ class APITimeoutError(APIConnectionError):
 class APIStatusError(NanoAPIError):
     """The server answered with a 4xx or 5xx status.
 
-    Raised by [`Client.raise_for_status`][nanoapi.Client.raise_for_status]; override that
+    Raised by [`Client._raise_for_status`][nanoapi.Client._raise_for_status]; override that
     to raise your own exceptions instead.
 
     Example:

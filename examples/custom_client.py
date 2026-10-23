@@ -169,7 +169,7 @@ class Bank(nanoapi.Client):
             "https://bank.test", retry=IdempotentRetry(backoff=0.01), transport=transport
         )
 
-    def prepare_request(
+    def _prepare_request(
         self, request: httpx.Request, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Request:
         """Runs on every attempt, so each retry gets a fresh timestamp + signature."""
@@ -182,7 +182,7 @@ class Bank(nanoapi.Client):
         print(f"  -> {request.method} {request.url.path}")
         return request
 
-    def process_response(
+    def _process_response(
         self, response: httpx.Response, route: nanoapi.Route[Any, Any, Any]
     ) -> httpx.Response:
         """Unwrap {"ok": true, "data": X} so response models can describe just X."""
@@ -192,20 +192,20 @@ class Bank(nanoapi.Client):
             return httpx.Response(response.status_code, json=data, request=response.request)
         return response
 
-    def raise_for_status(self, response: httpx.Response) -> None:
+    def _raise_for_status(self, response: httpx.Response) -> None:
         """Turn error envelopes into domain exceptions; anything else -> APIStatusError."""
         if response.is_success:
             return
         try:
             error = ApiError.model_validate(response.json()["error"])
         except (ValueError, KeyError, TypeError, ValidationError):
-            super().raise_for_status(response)
+            super()._raise_for_status(response)
             return
         exc_type = {404: NotFound, 422: InsufficientFunds}.get(response.status_code, BankError)
         raise exc_type(response.status_code, error)
 
-    def retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
-        return None if route.meta.get("retry") is False else super().retry_policy(route)
+    def _retry_policy(self, route: nanoapi.Route[Any, Any, Any]) -> nanoapi.Retry | None:
+        return None if route.meta.get("retry") is False else super()._retry_policy(route)
 
 
 def main() -> None:
@@ -236,7 +236,7 @@ def main() -> None:
     print("\nthe same route through a plain client (no signing hook):")
     plain = nanoapi.Client("https://bank.test", transport=httpx.MockTransport(server))
     try:
-        plain.call(Bank.get_account, account_id="acc_alice")
+        Bank.get_account.bind(plain)(account_id="acc_alice")
     except nanoapi.APIStatusError as exc:
         print(f"   APIStatusError {exc.status_code}: {exc.body['error']['code']}")
 

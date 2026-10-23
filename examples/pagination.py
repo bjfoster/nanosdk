@@ -175,7 +175,7 @@ def main() -> None:
     adhoc = nanoapi.get("/offset", request=OffsetQuery, response=list[Item]).paginate(
         nanoapi.Offset()
     )
-    print("ad hoc:", sum(1 for _ in api.iter(adhoc, limit=7)), "items")
+    print("ad hoc:", sum(1 for _ in adhoc.bind(api).iter(limit=7)), "items")
 
     # Async: the same routes give async iterators.
     async def run_async() -> None:

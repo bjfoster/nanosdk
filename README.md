@@ -109,14 +109,23 @@ user = Api(url).get(user_id=1)               # User
 user = await AsyncApi(url).get(user_id=1)    # User
 ```
 
-Or skip the subclass and hand routes to an instance as plain objects:
+Or skip the subclass and bind a route to any client:
 
 ```python
 get_user = nanoapi.get("/users/{user_id}", request=GetUser, response=User)
 client = nanoapi.Client("https://api.example.com")
-client.call(get_user, user_id=1)               # -> User
-client.send(get_user, GetUser(user_id=1))      # -> User
+get_user.bind(client)(user_id=1)               # -> User
+get_user.bind(client).send(GetUser(user_id=1)) # -> User
 ```
+
+### What's on a client instance
+
+Your routes, plus `with_options()`, `close()` (`aclose()` on `AsyncClient`) and the
+context-manager protocol: nothing else, so autocomplete on `api.` lists the API you
+declared. nanoapi's own machinery is underscored, and declaring a route whose name
+collides with one of the client's attributes (`close`, `with_options`, a hook, ...)
+raises `TypeError` when the class is defined. For the underlying httpx client, use
+`nanoapi.http_client(api)`.
 
 ## On a bound route
 
@@ -182,7 +191,7 @@ api.by_offset(limit=50)              # list[Post]: just the first page, as befor
 api.by_offset.iter(limit=50)         # Iterator[Post] across every page, lazily
 api.by_offset.pages(limit=50)        # Iterator[Page[ListPosts, list[Post], Post]]
 async for post in aapi.by_cursor.iter(): ...   # AsyncIterator[Post]
-client.iter(Posts.by_offset, limit=50)          # ad hoc, like client.call
+Posts.by_offset.bind(client).iter(limit=50)    # a route not declared on the client
 ```
 
 Strategies: `Cursor`, `Offset`, `PageNumber("page", size="per_page")`,
@@ -207,31 +216,59 @@ the plain-dict rows.
 
 ## Custom behaviour
 
-Subclass the client and override any of these:
+Subclass the client and override any of these hooks. They're underscored so they
+stay out of the client's public namespace, next to your routes:
 
 ```python
 class Api(nanoapi.Client):
     public = nanoapi.get("/status", response=Status, meta={"auth": False})
 
-    def prepare_request(self, request, route):    # every attempt: sign, log, rewrite
+    def _prepare_request(self, request, route):    # every attempt: sign, log, rewrite
         if route.meta.get("auth", True):
             request.headers["X-Signature"] = sign(request)
         return request
 
-    def process_response(self, response, route):  # before status check + decoding
+    def _process_response(self, response, route):  # before status check + decoding
         return response
 
-    def retry_policy(self, route):                # per-route retry, e.g. from meta
-        return None if route.meta.get("no_retry") else super().retry_policy(route)
+    def _retry_policy(self, route):                # per-route retry, e.g. from meta
+        return None if route.meta.get("no_retry") else super()._retry_policy(route)
 
-    def raise_for_status(self, response): ...     # map errors your own way
+    def _raise_for_status(self, response): ...     # map errors your own way
 ```
 
-On `AsyncClient`, `prepare_request` and `process_response` are `async def`. `meta=`
+On `AsyncClient`, `_prepare_request` and `_process_response` are `async def`. `meta=`
 is free-form data on any route for your hooks to read. `Retry` is a frozen dataclass
 (`max_retries`, `statuses`, `methods`, `backoff`, `max_delay`, `jitter`,
 `respect_retry_after`); subclass it and override `should_retry` / `delay` for more.
 POST isn't retried unless you add it to `methods`.
+
+## Logging
+
+nanoapi logs to the standard `logging` module under the `nanoapi` logger and prints
+nothing until your application configures logging:
+
+```python
+import logging
+logging.basicConfig(level=logging.WARNING)                 # retries only
+logging.getLogger("nanoapi").setLevel(logging.DEBUG)       # every request too
+```
+
+| Level | Logger | What |
+|---|---|---|
+| DEBUG | `nanoapi` | every response: `GET https://api.example.com/users/1 -> 200 OK in 84 ms (get_user, attempt 1)`, and transport failures |
+| DEBUG | `nanoapi` | each page fetched by `.iter()` / `.pages()` |
+| WARNING | `nanoapi` | each retry: `Retrying GET ... in 1.03s after 503 Service Unavailable (get_user, retry 1 of 2)` |
+| WARNING | `nanoapi` | pagination stopped because the strategy asked for the same page again |
+| DEBUG / INFO | `nanoapi.auth` | OAuth token fetches; a token refused with 401 and replaced |
+
+Records carry structured fields for JSON log formatters: `route`, `method`, `url`,
+`attempt`, plus `status_code`, `elapsed_ms` or `retry_delay` where they apply.
+URLs are logged as nanoapi built them, *before* auth is applied, and headers and bodies
+are never logged, so tokens and API keys stay out of nanoapi's logs. (httpx itself logs
+full URLs at INFO on the `httpx` logger, so prefer header API keys over query-string ones.)
+
+An SDK can log under its own name: `Client(..., logger=logging.getLogger("my_sdk"))`.
 
 ## Errors
 
@@ -242,7 +279,7 @@ All inherit `nanoapi.NanoAPIError`:
 - `ResponseValidationError` — a 2xx body didn't match `response=`
 
 Invalid *arguments* raise pydantic's `ValidationError` before anything is sent.
-Override `raise_for_status(self, response)` on your client to map errors your own way
+Override `_raise_for_status(self, response)` on your client to map errors your own way
 (see [Custom behaviour](#custom-behaviour)).
 
 <!-- --8<-- [end:guide] -->

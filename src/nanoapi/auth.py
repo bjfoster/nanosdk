@@ -12,6 +12,7 @@ tuple for basic auth) works as `auth=` too.
 """
 
 import base64
+import logging
 import math
 import time
 from collections.abc import Callable, Generator, Mapping
@@ -22,6 +23,8 @@ import httpx
 from .errors import APIStatusError
 
 __all__ = ["ApiKey", "Bearer", "OAuth2ClientCredentials"]
+
+logger = logging.getLogger("nanoapi.auth")
 
 
 class Bearer(httpx.Auth):
@@ -56,6 +59,10 @@ class ApiKey(httpx.Auth):
         ApiKey("X-Api-Key", key)                    # X-Api-Key: <key>
         ApiKey("api_key", key, location="query")    # ?api_key=<key>
         ```
+
+    Prefer a header when the API allows it: httpx logs request URLs (including the
+    query string) at INFO on the `httpx` logger, so a query-string key can end up in
+    your logs. nanoapi's own logs never include it.
 
     Args:
         name: The header or query-parameter name.
@@ -149,10 +156,16 @@ class OAuth2ClientCredentials(httpx.Auth):
                 without an `access_token`.
         """
         if self._token is None or self._clock() >= self._expires_at:
+            reason = "no token yet" if self._token is None else "token expired"
+            logger.debug("Fetching an OAuth token from %s (%s)", self.token_url, reason)
             self._store((yield self._token_request()))
         request.headers["Authorization"] = f"Bearer {self._token}"
         response = yield request
         if response.status_code == 401:
+            logger.info(
+                "%s %s was refused with 401; fetching a new OAuth token and retrying once",
+                request.method, request.url,
+            )  # fmt: skip
             self._store((yield self._token_request()))
             request.headers["Authorization"] = f"Bearer {self._token}"
             yield request
@@ -175,6 +188,9 @@ class OAuth2ClientCredentials(httpx.Auth):
         except ValueError:
             body = response.text
         if response.is_error or not isinstance(body, dict) or "access_token" not in body:
+            logger.warning(
+                "OAuth token request to %s failed with %d", self.token_url, response.status_code
+            )
             raise APIStatusError(response, body=body)
         payload = cast(dict[str, Any], body)
         self._token = str(payload["access_token"])
@@ -182,3 +198,4 @@ class OAuth2ClientCredentials(httpx.Auth):
         self._expires_at = (
             self._clock() + float(expires_in) - self.leeway if expires_in else math.inf
         )
+        logger.debug("Got an OAuth token valid for %s s", expires_in or "unlimited")

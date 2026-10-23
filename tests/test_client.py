@@ -143,7 +143,7 @@ def test_path_values_are_url_encoded(server: Recorder) -> None:
 
     route = nanoapi.get("/files/{name}", request=ByName, response=dict[str, Any])
     client = nanoapi.Client("https://api.test", transport=httpx.MockTransport(server))
-    client.call(route, name="a b/c")
+    route.bind(client)(name="a b/c")
     assert server.last.url.raw_path == b"/files/a%20b%2Fc"
 
 
@@ -284,10 +284,10 @@ def test_custom_raise_for_status(server: Recorder) -> None:
         pass
 
     class Strict(Api):
-        def raise_for_status(self, response: httpx.Response) -> None:
+        def _raise_for_status(self, response: httpx.Response) -> None:
             if response.status_code == 418:
                 raise Teapot
-            super().raise_for_status(response)
+            super()._raise_for_status(response)
 
     server.status = 418
     with pytest.raises(Teapot):
@@ -325,10 +325,46 @@ async def test_async_roundtrip(aapi: AsyncApi, server: Recorder) -> None:
         assert raw.status_code == 200
         server.reply = {"id": 3}
         route = nanoapi.get("/users/{user_id}", request=GetUser, response=dict[str, Any])
-        assert await aapi.call(route, user_id=3) == {"id": 3}
+        assert await route.bind(aapi)(user_id=3) == {"id": 3}
 
 
 async def test_async_status_error(aapi: AsyncApi, server: Recorder) -> None:
     server.status = 503
     with pytest.raises(nanoapi.APIStatusError):
         await aapi.list_users()
+
+
+# --- the client's namespace ---------------------------------------------------------
+
+
+def test_instances_only_expose_routes_and_lifecycle() -> None:
+    public = {name for name in dir(Api) if not name.startswith("_")}
+    routes = {name for name, v in vars(Api).items() if isinstance(v, nanoapi.Route)}
+    routes |= {name for name, v in vars(UserRoutes).items() if isinstance(v, nanoapi.Route)}
+    assert public - routes == {"close", "with_options"}
+
+
+@pytest.mark.parametrize("name", ["close", "with_options", "_send", "_prepare_request"])
+def test_routes_cannot_shadow_the_client(name: str) -> None:
+    with pytest.raises(TypeError, match=f"can't be called {name!r}"):
+        type("Bad", (nanoapi.Client,), {name: nanoapi.get("/x")})
+    group = type("Group", (nanoapi.Routes,), {name: nanoapi.get("/x")})  # fine on its own
+    with pytest.raises(TypeError, match="can't be called"):
+        type("Bad", (group, nanoapi.AsyncClient), {})
+
+
+def test_routes_named_like_old_client_methods_just_work(server: Recorder) -> None:
+    """`send` and `pages` used to shadow client internals and break every other route."""
+
+    class Messages(nanoapi.Client):
+        send = nanoapi.post("/messages", response=dict[str, Any])
+        pages = nanoapi.get("/pages", response=dict[str, Any])
+        inbox = nanoapi.get("/inbox", response=dict[str, Any])
+
+    api = Messages("https://api.test", transport=httpx.MockTransport(server))
+    assert api.send() == api.pages() == api.inbox() == {"id": 1, "name": "ada"}
+    assert [r.url.path for r in server.requests] == ["/messages", "/pages", "/inbox"]
+
+
+def test_http_client_escape_hatch(api: Api) -> None:
+    assert isinstance(nanoapi.http_client(api), httpx.Client)
