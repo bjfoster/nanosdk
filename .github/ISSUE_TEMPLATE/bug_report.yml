@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in nanosdk doesn't work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest code that shows the problem. `httpx.MockTransport` stands in for the
+        server without a real API: pass `transport=httpx.MockTransport(handler)` to your
+        client. For `nanosdk generate`, include the part of the spec that matters.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or type checker output
+      render: text
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: "Paste the output of: `python -c \"import sys, nanosdk, httpx, pydantic; print(sys.version, nanosdk.__version__, httpx.__version__, pydantic.VERSION)\"`, and your type checker's version if it's a typing issue."
+      render: text
+    validations:
+      required: true
