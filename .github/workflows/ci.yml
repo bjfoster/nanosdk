@@ -36,6 +36,8 @@ jobs:
       - run: uv run pyright
       - run: uv run mypy
       - run: uv run ty check
+      - name: Public API type completeness (as users see it)
+        run: uv run pyright --verifytypes nanosdk --ignoreexternal
 
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -52,6 +54,27 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run pytest
+
+  lowest:
+    name: Test (lowest dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Use the oldest supported Python
+        run: echo "UV_PYTHON=$(sed -nE 's/^requires-python = ">=([0-9.]+)"$/\1/p' pyproject.toml)" >> "$GITHUB_ENV"
+      # Every direct dependency at its declared lower bound, so the bounds stay honest.
+      - run: uv sync --resolution lowest-direct
+      - run: uv run --no-sync pytest
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv sync --locked
+      - run: uv run pytest --cov --cov-report=term --cov-report=markdown-append:"$GITHUB_STEP_SUMMARY"
 
   examples:
     name: Example ${{ matrix.project }}

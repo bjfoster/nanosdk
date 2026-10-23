@@ -24,7 +24,7 @@ from .errors import APIStatusError
 
 __all__ = ["ApiKey", "Bearer", "OAuth2ClientCredentials"]
 
-logger = logging.getLogger("nanosdk.auth")
+logger: logging.Logger = logging.getLogger("nanosdk.auth")
 
 
 class Bearer(httpx.Auth):
@@ -135,13 +135,13 @@ class OAuth2ClientCredentials(httpx.Auth):
         leeway: float = 30.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.token_url = httpx.URL(token_url)
+        self.token_url: httpx.URL = httpx.URL(token_url)
         if not self.token_url.is_absolute_url:
             raise ValueError(f"token_url must be absolute, got {str(token_url)!r}")
         self.client_id = client_id
         self._client_secret = client_secret
         self.scope = scope
-        self.extra = dict(extra or {})
+        self.extra: dict[str, str] = dict(extra or {})
         self.credentials_in = credentials_in
         self.leeway = leeway
         self._clock = clock

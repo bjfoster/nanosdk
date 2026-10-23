@@ -151,13 +151,15 @@ class Route[**P, ReqT, RespT]:
         name: str | None = None,
         meta: Mapping[str, Any] | None = None,
     ) -> None:
-        self.method = method.upper()
+        self.method: str = method.upper()
         self.path = path
         self.request = request
         self.response = response
         self.headers: dict[str, str] = dict(headers or {})
         # PATCH bodies only send fields you actually set, unless told otherwise.
-        self.exclude_unset = self.method == "PATCH" if exclude_unset is None else exclude_unset
+        self.exclude_unset: bool = (
+            self.method == "PATCH" if exclude_unset is None else exclude_unset
+        )
         self.name = name
         # Free-form data for your client hooks (prepare_request, retry_policy, ...).
         self.meta: dict[str, Any] = dict(meta or {})
@@ -588,19 +590,19 @@ class Verb:
         )
 
 
-get = Verb("GET")
+get: Verb = Verb("GET")
 """Declare a GET route. Unmarked request fields go in the query string."""
-post = Verb("POST")
+post: Verb = Verb("POST")
 """Declare a POST route. Unmarked request fields become keys of a JSON body."""
-put = Verb("PUT")
+put: Verb = Verb("PUT")
 """Declare a PUT route. Unmarked request fields become keys of a JSON body."""
-patch = Verb("PATCH")
+patch: Verb = Verb("PATCH")
 """Declare a PATCH route. Only fields the caller sets are sent (`exclude_unset`)."""
-delete = Verb("DELETE")
+delete: Verb = Verb("DELETE")
 """Declare a DELETE route. Unmarked request fields go in the query string."""
-head = Verb("HEAD")
+head: Verb = Verb("HEAD")
 """Declare a HEAD route."""
-options = Verb("OPTIONS")
+options: Verb = Verb("OPTIONS")
 """Declare an OPTIONS route."""
 
 

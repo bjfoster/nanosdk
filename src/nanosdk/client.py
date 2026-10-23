@@ -729,8 +729,8 @@ class BoundRoute[**P, ReqT, RespT]:
     __slots__ = ("client", "route")
 
     def __init__(self, route: Route[P, ReqT, RespT], client: Client) -> None:
-        self.route = route
-        self.client = client
+        self.route: Route[P, ReqT, RespT] = route
+        self.client: Client = client
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> RespT:
         """Build the request model from the arguments, send it, and decode the response.
@@ -801,7 +801,7 @@ class BoundPaginatedRoute[**P, ReqT, RespT, ItemT](BoundRoute[P, ReqT, RespT]):
 
     def __init__(self, paginated: PaginatedRoute[P, ReqT, RespT, ItemT], client: Client) -> None:
         super().__init__(paginated.route, client)
-        self.paginated = paginated
+        self.paginated: PaginatedRoute[P, ReqT, RespT, ItemT] = paginated
 
     def iter(self, *args: P.args, **kwargs: P.kwargs) -> Iterator[ItemT]:
         """Iterate over every item on every page.
@@ -839,8 +839,8 @@ class AsyncBoundRoute[**P, ReqT, RespT]:
     __slots__ = ("client", "route")
 
     def __init__(self, route: Route[P, ReqT, RespT], client: AsyncClient) -> None:
-        self.route = route
-        self.client = client
+        self.route: Route[P, ReqT, RespT] = route
+        self.client: AsyncClient = client
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> RespT:
         """Build the request model, send it, and decode the response.
@@ -900,7 +900,7 @@ class AsyncBoundPaginatedRoute[**P, ReqT, RespT, ItemT](AsyncBoundRoute[P, ReqT,
         self, paginated: PaginatedRoute[P, ReqT, RespT, ItemT], client: AsyncClient
     ) -> None:
         super().__init__(paginated.route, client)
-        self.paginated = paginated
+        self.paginated: PaginatedRoute[P, ReqT, RespT, ItemT] = paginated
 
     def iter(self, *args: P.args, **kwargs: P.kwargs) -> AsyncIterator[ItemT]:
         """Iterate over every item on every page with `async for`.
