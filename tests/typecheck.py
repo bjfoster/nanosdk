@@ -57,12 +57,13 @@ def sync_usage(api: Api) -> None:
     assert_type(client.call(standalone, user_id=2), User)
     assert_type(client.send(standalone, GetUser(user_id=2)), User)
 
-    # Errors the type checker must catch:
+    # Errors the type checker must catch. ty models pydantic's lax coercion and
+    # discarded extras, so it (rightly) accepts `user_id="nope"` and `bogus=1`.
     api.get(user_id="nope")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
-    api.get()  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+    api.get()  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
     api.get(user_id=1, bogus=1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
-    api.list(1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
-    api.get.send(CreateUser(name="x"))  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    api.list(1)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # ty: ignore[too-many-positional-arguments]
+    api.get.send(CreateUser(name="x"))  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
 
 
 async def async_usage(api: AsyncApi) -> None:

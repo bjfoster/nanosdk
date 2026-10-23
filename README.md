@@ -31,7 +31,7 @@ both see it.
 ## Install
 
 ```bash
-uv sync                     # from this folder; installs the dev group (pytest, pyright, mypy, ruff)
+uv sync                     # from this folder; installs the dev group (pytest, pyright, mypy, ty, ruff)
 pip install -e .            # or without uv
 ```
 
@@ -163,6 +163,7 @@ uv run ruff format .     # format
 uv run pytest            # runtime tests (httpx.MockTransport, no network)
 uv run pyright           # strict, incl. tests/typecheck.py assert_type + must-fail cases
 uv run mypy              # strict
+uv run ty check          # Astral's ty (3 of the 5 must-fail cases; see typecheck.py)
 ```
 
 See `examples/jsonplaceholder.py` for a full small SDK.

@@ -23,7 +23,14 @@ classifiers = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "pyright", "mypy>=1.12", "ruff"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "pyright",
+    "mypy>=1.12",
+    "ruff",
+    "ty>=0.0.91",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nanoapi"]
@@ -64,6 +71,15 @@ typeCheckingMode = "strict"
 pythonVersion = "3.13"
 enableTypeIgnoreComments = false
 reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+include = ["src", "tests/typecheck.py", "examples"]
+
+[tool.ty.rules]
+unused-ignore-comment = "error"
 
 [tool.mypy]
 strict = true
